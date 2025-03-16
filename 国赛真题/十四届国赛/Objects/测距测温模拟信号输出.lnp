@@ -1,0 +1,6 @@
+".\Objects\STARTUP.obj",
+".\Objects\iic.obj",
+".\Objects\main.obj",
+".\Objects\onewire.obj" 
+TO ".\Objects\测距测温模拟信号输出" 
+PRINT(".\Listings\测距测温模拟信号输出.m51") RAMSIZE(256) 

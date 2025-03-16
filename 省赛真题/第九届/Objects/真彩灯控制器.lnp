@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\iic.obj" 
+TO ".\Objects\真彩灯控制器" 
+PRINT(".\Listings\真彩灯控制器.m51") RAMSIZE(256) 

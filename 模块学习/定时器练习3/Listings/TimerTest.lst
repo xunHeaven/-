@@ -1,0 +1,355 @@
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE TIMERTEST
+OBJECT MODULE PLACED IN .\Objects\TimerTest.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE TimerTest.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Lis
+                    -tings\TimerTest.lst) OBJECT(.\Objects\TimerTest.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          
+   3          unsigned char code SMG_number[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,
+   4               0x80,0x90,0x88,0x83,0xc6,0xc0,0x86,0x8e,
+   5                  0xbf,0x7f};
+   6          unsigned int t_hour=0;
+   7          unsigned int t_min=59;
+   8          unsigned int t_sec=0;
+   9          sbit S7=P3^0;
+  10          sbit S6=P3^1;
+  11          sbit S5=P3^2;
+  12          sbit S4=P3^3;
+  13          unsigned int i=0;
+  14          unsigned time_ctrl=0;   
+  15          void delay(unsigned int t)
+  16          {
+  17   1              while(t--);
+  18   1      }
+  19          void SelectHC573(unsigned char channel)
+  20          {
+  21   1              switch(channel)
+  22   1              {
+  23   2                      case 4:
+  24   2                              P2=(P2&0x1f)|0x80;
+  25   2                              break;
+  26   2                      case 5:
+  27   2                              P2=(P2&0x1f)|0xa0;
+  28   2                              break;
+  29   2                      case 6:
+  30   2                              P2=(P2&0x1f)|0xc0;
+  31   2                              break;
+  32   2                      case 7:
+  33   2                              P2=(P2&0x1f)|0xe0;
+  34   2                              break;
+  35   2              }
+  36   1      }
+  37          void display_SMG(unsigned char pos,unsigned char value)
+  38          {
+  39   1              SelectHC573(7);
+  40   1              P0=0xff;
+  41   1              SelectHC573(6);
+  42   1              P0=0x01<<pos;
+  43   1              SelectHC573(7);
+  44   1              P0=value;
+  45   1      }
+  46          
+  47          //-------------定时器中断
+  48          void InitTimer0()
+  49          {
+  50   1              TMOD = 0x00;                    //设置定时器为模式0(16位自动重装载)
+  51   1          TL0 = (65535-50000)/256;        //初始化计时值
+  52   1          TH0 = (65535-50000)%256;
+  53   1              
+  54   1          TR0 = 1;                        //定时器0开始计时
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 2   
+
+  55   1          ET0 = 1;                        //使能定时器0中断
+  56   1          EA = 1;
+  57   1      }
+  58          unsigned int count=0;
+  59          void ServiceTimer0() interrupt 1
+  60          {
+  61   1              TH0 = (65535-50000)/256;        //初始化计时值
+  62   1          TL0 = (65535-50000)%256;
+  63   1              count++;
+  64   1              if(count==20)
+  65   1              {
+  66   2                      count=0;
+  67   2                      t_sec++;
+  68   2                      if(t_sec==60)
+  69   2                      {
+  70   3                              t_sec=0;
+  71   3                              t_min++;
+  72   3                              
+  73   3                      }
+  74   2                      if(t_min==60)
+  75   2                      {
+  76   3                              t_hour++;
+  77   3                              t_min=0;
+  78   3                      }
+  79   2                      if(t_hour==24)
+  80   2                      {
+  81   3                              t_hour=0;
+  82   3                      }
+  83   2              }
+  84   1              
+  85   1      }
+  86          
+  87          //--------------
+  88          
+  89          void show_Timer(unsigned char smg0,unsigned char smg1,unsigned char smg3,unsigned char smg4,unsigned char 
+             -smg6,unsigned char smg7)
+  90          {
+  91   1              display_SMG(0,smg0);
+  92   1              delay(500);
+  93   1              display_SMG(1,smg1);
+  94   1              delay(500);
+  95   1              
+  96   1              display_SMG(2,SMG_number[16]);
+  97   1              delay(500);
+  98   1              
+  99   1              display_SMG(3,smg3);
+ 100   1              delay(500);
+ 101   1              display_SMG(4,smg4);
+ 102   1              delay(500);
+ 103   1              
+ 104   1              display_SMG(5,SMG_number[16]);
+ 105   1              delay(500);
+ 106   1              
+ 107   1              display_SMG(6,smg6);
+ 108   1              delay(500);
+ 109   1              display_SMG(7,smg7);
+ 110   1              delay(500);
+ 111   1      }
+ 112          
+ 113          
+ 114          void ScanKey()
+ 115          {
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 3   
+
+ 116   1              if(S4==0)
+ 117   1              {
+ 118   2                      delay(100);
+ 119   2                      if(S4==0)
+ 120   2                      {
+ 121   3                              time_ctrl++;
+ 122   3                              if(time_ctrl==4)
+ 123   3                              {
+ 124   4                                      time_ctrl=0;
+ 125   4                              }
+ 126   3                              while(S4==0)
+ 127   3                              {
+ 128   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 129   4                                      
+ 130   4                              }
+ 131   3                      }
+ 132   2              }
+ 133   1              if(S5==0)
+ 134   1              {
+ 135   2                      delay(100);
+ 136   2                      if(S5==0)
+ 137   2                      {
+ 138   3                              if(time_ctrl==1)
+ 139   3                              {
+ 140   4                                      t_sec=0;
+ 141   4                              }
+ 142   3                              if(time_ctrl==2)
+ 143   3                              {
+ 144   4                                      t_min=0;
+ 145   4                              }
+ 146   3                              if(time_ctrl==3)
+ 147   3                              {
+ 148   4                                      t_hour=0;
+ 149   4                              }
+ 150   3                              while(S5==0)
+ 151   3                              {
+ 152   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 153   4                                      
+ 154   4                              }
+ 155   3                      }
+ 156   2                      
+ 157   2              }
+ 158   1              if(S6==0)
+ 159   1              {
+ 160   2                      delay(100);
+ 161   2                      if(S6==0)
+ 162   2                      {
+ 163   3                              if(time_ctrl==1)
+ 164   3                              {
+ 165   4                                      if(t_sec==0)
+ 166   4                                      {
+ 167   5                                              t_sec=59;
+ 168   5                                      }
+ 169   4                                      else
+ 170   4                                      {
+ 171   5                                              t_sec--;
+ 172   5                                      }
+ 173   4                              }
+ 174   3                              if(time_ctrl==2)
+ 175   3                              {
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 4   
+
+ 176   4                                      if(t_min==0)
+ 177   4                                      {
+ 178   5                                              t_min=59;
+ 179   5                                      }
+ 180   4                                      else
+ 181   4                                      {
+ 182   5                                              t_min--;
+ 183   5                                      }
+ 184   4                              }
+ 185   3                              if(time_ctrl==3)
+ 186   3                              {
+ 187   4                                      if(t_hour==0)
+ 188   4                                      {
+ 189   5                                              t_hour=23;
+ 190   5                                      }
+ 191   4                                      else
+ 192   4                                      {
+ 193   5                                              t_hour--;
+ 194   5                                      }
+ 195   4                              }
+ 196   3                              while(S6==0)
+ 197   3                              {
+ 198   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 199   4                              }
+ 200   3                              
+ 201   3                      }
+ 202   2              }
+ 203   1              if(S7==0)
+ 204   1              {
+ 205   2                      delay(100);
+ 206   2                      if(S7==0)
+ 207   2                      {
+ 208   3                              if(time_ctrl==1)
+ 209   3                              {
+ 210   4                                      if(t_sec==59)
+ 211   4                                      {
+ 212   5                                              t_sec=0;
+ 213   5                                      }
+ 214   4                                      else
+ 215   4                                      {
+ 216   5                                              t_sec++;
+ 217   5                                      }
+ 218   4                                      
+ 219   4                              }
+ 220   3                              if(time_ctrl==2)
+ 221   3                              {
+ 222   4                                      if(t_min==59)
+ 223   4                                      {
+ 224   5                                              t_min=0;
+ 225   5                                      }
+ 226   4                                      else
+ 227   4                                      {
+ 228   5                                              t_min++;
+ 229   5                                      }
+ 230   4                              }
+ 231   3                              if(time_ctrl==3)
+ 232   3                              {
+ 233   4                                      if(t_hour==23)
+ 234   4                                      {
+ 235   5                                              t_hour=0;
+ 236   5                                      }
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 5   
+
+ 237   4                                      else
+ 238   4                                      {
+ 239   5                                              t_hour++;
+ 240   5                                      }
+ 241   4      
+ 242   4                              }
+ 243   3                              while(S7==0)
+ 244   3                              {
+ 245   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 246   4                              }
+ 247   3                              
+ 248   3                      }
+ 249   2              }
+ 250   1              
+ 251   1              
+ 252   1              
+ 253   1              
+ 254   1      }
+ 255          
+ 256          void main(void)
+ 257          {
+ 258   1              InitTimer0();
+ 259   1              while(1)
+ 260   1              {
+ 261   2                      if(time_ctrl==0)
+ 262   2                      {
+ 263   3                              show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_nu
+             -mber[t_sec/10],SMG_number[t_sec%10]);
+ 264   3                      }
+ 265   2                      else if(time_ctrl==1)
+ 266   2                      {
+ 267   3                              i=20;
+ 268   3                              while(i--)
+ 269   3                              {
+ 270   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 271   4                              }
+ 272   3                              i=20;
+ 273   3                              while(i--)
+ 274   3                              {
+ 275   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],0xff,
+             -0xff);
+ 276   4                              }
+ 277   3                              
+ 278   3                      }
+ 279   2                      else if(time_ctrl==2)
+ 280   2                      {
+ 281   3                              i=20;
+ 282   3                              while(i--)
+ 283   3                              {
+ 284   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 285   4                              }
+ 286   3                              i=20;
+ 287   3                              while(i--)
+ 288   3                              {
+ 289   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],0xff,0xff,SMG_number[t_sec/10],SMG_number[t_sec
+             -%10]);
+ 290   4                              }
+ 291   3                              
+ 292   3                      }
+C51 COMPILER V9.56.0.0   TIMERTEST                                                         03/18/2024 20:23:26 PAGE 6   
+
+ 293   2                      else if(time_ctrl==3)
+ 294   2                      {
+ 295   3                              i=20;
+ 296   3                              while(i--)
+ 297   3                              {
+ 298   4                                      show_Timer(SMG_number[t_hour/10],SMG_number[t_hour%10],SMG_number[t_min/10],SMG_number[t_min%10],SMG_n
+             -umber[t_sec/10],SMG_number[t_sec%10]);
+ 299   4                              }
+ 300   3                              i=20;
+ 301   3                              while(i--)
+ 302   3                              {
+ 303   4                                      show_Timer(0xff,0xff,SMG_number[t_min/10],SMG_number[t_min%10],SMG_number[t_sec/10],SMG_number[t_sec%1
+             -0]);
+ 304   4                              }
+ 305   3                      }
+ 306   2                      ScanKey();
+ 307   2                      
+ 308   2              }
+ 309   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2396    ----
+   CONSTANT SIZE    =     18    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     12       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

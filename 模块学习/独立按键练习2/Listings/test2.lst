@@ -1,0 +1,153 @@
+C51 COMPILER V9.56.0.0   TEST2                                                             03/12/2024 23:23:16 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE TEST2
+OBJECT MODULE PLACED IN .\Objects\test2.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE test2.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listing
+                    -s\test2.lst) OBJECT(.\Objects\test2.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          
+   3          sbit S7=P3^0;
+   4          sbit S6=P3^1;
+   5          sbit S5=P3^2;
+   6          sbit S4=P3^3;
+   7          
+   8          sbit HC138_A=P2^5;
+   9          sbit HC138_B=P2^6;
+  10          sbit HC138_C=P2^7;
+  11          
+  12          sbit L1=P0^0;
+  13          sbit L2=P0^1;
+  14          sbit L3=P0^2;
+  15          sbit L4=P0^3;
+  16          sbit L5=P0^4;
+  17          sbit L6=P0^5;
+  18          sbit L7=P0^6;
+  19          sbit L8=P0^7;
+  20          
+  21          unsigned int state_key=0;
+  22          void delay(unsigned int t)
+  23          {
+  24   1              while(t--);
+  25   1      }
+  26          
+  27          void HC_ctrl(unsigned int hc)
+  28          {
+  29   1              switch(hc)
+  30   1              {
+  31   2                      case 4:
+  32   2                              HC138_C=1;
+  33   2                              HC138_B=0;
+  34   2                              HC138_A=0;
+  35   2                              break;
+  36   2              }
+  37   1      }
+  38          
+  39          void ScanKeys_alone()
+  40          {
+  41   1              if(S7==0)
+  42   1              {
+  43   2                      delay(100);
+  44   2                      if(S7==0)
+  45   2                      {
+  46   3                              if(state_key==0)
+  47   3                              {
+  48   4                                      L1=0;
+  49   4                                      state_key=1;
+  50   4                              }
+  51   3                              else if(state_key==1)
+  52   3                              {
+  53   4                                      L1=1;
+  54   4                                      state_key=0;
+C51 COMPILER V9.56.0.0   TEST2                                                             03/12/2024 23:23:16 PAGE 2   
+
+  55   4                              }
+  56   3                              while(S7==0);
+  57   3                      }
+  58   2              }
+  59   1              if(S6==0)
+  60   1              {
+  61   2                      delay(100);
+  62   2                      if(S6==0)
+  63   2                      {
+  64   3                              if(state_key==0)
+  65   3                              {
+  66   4                                      L2=0;
+  67   4                                      state_key=2;
+  68   4                              }
+  69   3                              else if(state_key==2)
+  70   3                              {
+  71   4                                      L2=1;
+  72   4                                      state_key=0;
+  73   4                              }
+  74   3                              while(S6==0);
+  75   3                      }
+  76   2              }
+  77   1              if(S5==0)
+  78   1              {
+  79   2                      delay(100);
+  80   2                      if(S5==0)
+  81   2                      {
+  82   3                              if(state_key==1)
+  83   3                              {
+  84   4                                      L3=0;
+  85   4                                      while(S5==0);
+  86   4                                      L3=1;
+  87   4                              }
+  88   3                              else if(state_key==2)
+  89   3                              {
+  90   4                                      L5=0;
+  91   4                                      while(S5==0);
+  92   4                                      L5=1;
+  93   4                              }
+  94   3                      }
+  95   2              }
+  96   1              if(S4==0)
+  97   1              {
+  98   2                      delay(100);
+  99   2                      if(S4==0)
+ 100   2                      {
+ 101   3                              if(state_key==1)
+ 102   3                              {
+ 103   4                                      L4=0;
+ 104   4                                      while(S4==0);
+ 105   4                                      L4=1;
+ 106   4                              }
+ 107   3                              else if(state_key==2)
+ 108   3                              {
+ 109   4                                      L6=0;
+ 110   4                                      while(S4==0);
+ 111   4                                      L6=1;
+ 112   4                              }
+ 113   3                      }
+ 114   2              }
+ 115   1      }
+ 116          
+C51 COMPILER V9.56.0.0   TEST2                                                             03/12/2024 23:23:16 PAGE 3   
+
+ 117          void main(void)
+ 118          {
+ 119   1              HC_ctrl(4);
+ 120   1              while(1)
+ 121   1              {
+ 122   2                      ScanKeys_alone();
+ 123   2              }
+ 124   1      }
+ 125          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    206    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,168 @@
+C51 COMPILER V9.56.0.0   TIMERTEST2                                                        03/17/2024 23:28:09 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE TIMERTEST2
+OBJECT MODULE PLACED IN .\Objects\TimerTest2.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE TimerTest2.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Li
+                    -stings\TimerTest2.lst) OBJECT(.\Objects\TimerTest2.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          
+   3          sbit S4=P3^3;
+   4          sbit S5=P3^2;
+   5          unsigned int t_min=0;
+   6          unsigned int t_sec=0;
+   7          unsigned int t_ms=0;
+   8          unsigned char code SMG_number[]=
+   9                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,
+  10               0x80,0x90,0x88,0x83,0xc6,0xc0,0x86,0x8e,
+  11                  0xbf,0x7f};
+  12                  void delay(unsigned int t)
+  13          {
+  14   1              while(t--);
+  15   1      }
+  16          void SelectHC573(unsigned char channel)
+  17          {
+  18   1              switch(channel)
+  19   1              {
+  20   2                      case 4:
+  21   2                              P2=(P2&0x1f)|0x80;
+  22   2                              break;
+  23   2                      case 5:
+  24   2                              P2=(P2&0x1f)|0xa0;
+  25   2                              break;
+  26   2                      case 6:
+  27   2                              P2=(P2&0x1f)|0xc0;
+  28   2                              break;
+  29   2                      case 7:
+  30   2                              P2=(P2&0x1f)|0xe0;
+  31   2                              break;
+  32   2              }
+  33   1      }
+  34          void showSMG(unsigned char value,unsigned char pos)
+  35          {
+  36   1              SelectHC573(7);
+  37   1              P0=0xff;
+  38   1              SelectHC573(6);
+  39   1              P0=(0x01<<pos);
+  40   1              SelectHC573(7);
+  41   1              P0=value;
+  42   1      }
+  43          
+  44          void displayTimer()
+  45          {
+  46   1              showSMG(SMG_number[t_ms%10],7);
+  47   1              delay(500);
+  48   1              showSMG(SMG_number[t_ms/10],6);
+  49   1              delay(500);
+  50   1              
+  51   1              showSMG(SMG_number[16],5);
+  52   1              delay(500);
+  53   1              
+  54   1              showSMG(SMG_number[t_sec%10],4);
+C51 COMPILER V9.56.0.0   TIMERTEST2                                                        03/17/2024 23:28:09 PAGE 2   
+
+  55   1              delay(500);
+  56   1              showSMG(SMG_number[t_sec/10],3);
+  57   1              delay(500);
+  58   1              
+  59   1              showSMG(SMG_number[16],2);
+  60   1              delay(500);
+  61   1              
+  62   1              showSMG(SMG_number[t_min%10],1);
+  63   1              delay(500);
+  64   1              showSMG(SMG_number[t_min/10],0);
+  65   1              delay(500);
+  66   1      }
+  67          //------------定时器
+  68          void InitTimer0()
+  69          {
+  70   1              TMOD=0x01;
+  71   1              TH0=(65535-50000)/256;
+  72   1              TL0=(65535-50000)%256;
+  73   1              
+  74   1              ET0=1;
+  75   1              EA=1;
+  76   1              TR0=1;
+  77   1      }
+  78          void ServiceTimer0() interrupt 1
+  79          {
+  80   1              TH0=(65535-50000)/256;
+  81   1              TL0=(65535-50000)%256;
+  82   1              t_ms++;
+  83   1              if(t_ms==20)
+  84   1              {
+  85   2                      t_sec++;
+  86   2                      t_ms=0;
+  87   2                      if(t_sec==60)
+  88   2                      {
+  89   3                              t_min++;
+  90   3                              t_sec=0;
+  91   3                      }
+  92   2                      if(t_min==99)
+  93   2                      {
+  94   3                              t_min=0;
+  95   3                      }
+  96   2              }
+  97   1              
+  98   1      }
+  99          //--------------
+ 100          
+ 101          void ScanKey()
+ 102          {
+ 103   1              if(S4==0)//秒表启动与暂停
+ 104   1              {
+ 105   2                      delay(100);
+ 106   2                      if(S4==0)
+ 107   2                      {
+ 108   3                              TR0=~TR0;
+ 109   3                              while(S4==0)
+ 110   3                              {
+ 111   4                                      displayTimer();
+ 112   4                              }
+ 113   3                      }
+ 114   2              }
+ 115   1              if(S5==0)//秒表清零
+ 116   1              {
+C51 COMPILER V9.56.0.0   TIMERTEST2                                                        03/17/2024 23:28:09 PAGE 3   
+
+ 117   2                      delay(100);
+ 118   2                      if(S5==0)
+ 119   2                      {
+ 120   3                              t_min=0;
+ 121   3                              t_sec=0;
+ 122   3                              t_ms=0;
+ 123   3                              while(S5==0)
+ 124   3                              {
+ 125   4                                      displayTimer();
+ 126   4                              }
+ 127   3                      }
+ 128   2              }
+ 129   1      }
+ 130          
+ 131          
+ 132          void main()
+ 133          {
+ 134   1              InitTimer0();
+ 135   1              while(1)
+ 136   1              {
+ 137   2                      displayTimer();
+ 138   2                      ScanKey();
+ 139   2              }
+ 140   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    455    ----
+   CONSTANT SIZE    =     18    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      6    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

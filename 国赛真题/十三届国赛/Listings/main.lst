@@ -1,0 +1,757 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include <intrins.h>
+   3          #include <iic.h>
+   4          sbit S4=P3^3;
+   5          sbit S5=P3^2;
+   6          sbit S6=P3^1;
+   7          sbit S7=P3^0;
+   8          sbit TX=P1^0;
+   9          sbit RX=P1^1;
+  10          //sbit relay=P0^4;
+  11          //sbit buzzer=P0^6;
+  12          sbit pwmkey=P0^5;
+  13          unsigned char big_mode=1;//1-4
+  14          unsigned char freq_mode=1;//1为单位hz,2为单位khz
+  15          unsigned char code SMG_number[]=
+  16                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0x88,0x80,0xc6,
+  17                  0xc0,0x86,0x8e,0xbf,0x7f};//数码管段码，0-f和-.
+  18          unsigned char code SMG_Dotnumber[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10}; 
+  19          unsigned long freq;
+  20          unsigned int count_t1=0;//1s频率计时
+  21          unsigned long count_f=0;//频率计数
+  22          unsigned char count_t2=0;//长按S7计时
+  23          unsigned int shidu;
+  24          unsigned int distance=0;
+  25          unsigned char distance_canshu=60;//10-120
+  26          unsigned char ceju_mode=1;//1为cm,2为m
+  27          unsigned char canshu_mode=1;//1-3
+  28          unsigned int freq_canshu=9000;//1000-12000
+  29          unsigned char shidu_canshu=40;//10-60
+  30          unsigned char is_S7=0;//长按S7判断
+  31          unsigned char is_1s=0;//计时是否满1s
+  32          unsigned char count_relay=0;//继电器开合次数
+  33          unsigned char RB2;//读RB2的值
+  34          unsigned char relay=0;//判断继电器是否吸合，1为吸合
+  35          unsigned char pwm=0;//输出低电平为0，高电平为1
+  36          unsigned char is_500ms=1;
+  37          unsigned int count_ms1=0;//500ms测距一次
+  38          unsigned int count_ms2=0;//1khz,80%占空比计时
+  39          unsigned int count_ms3=0;//led灯闪烁频率为100ms;
+  40          unsigned char is_led=0;
+  41          void HCSelect(unsigned char channel);
+  42          void InitSys();
+  43          void displaySMG(unsigned char pos,unsigned char value);
+  44          void offSMG();
+  45          void showSMG();
+  46          void delay(unsigned int t);
+  47          void scanKey();
+  48          void run();
+  49          void InitTimer();
+  50          void getShidu();//读取湿度的函数
+  51          void outDAC();
+  52          void relayCount();//继电器开合和计数,还有pwm波形输出功能
+  53          void read_Dis();//超声波测距
+  54          void get_Dis();//0.5s测距一次
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 2   
+
+  55          void showLED();
+  56          
+  57          void main()
+  58          {
+  59   1              InitSys();
+  60   1              InitTimer();
+  61   1              while(1)
+  62   1              {
+  63   2                      run();
+  64   2                      scanKey();
+  65   2              }
+  66   1      }
+  67          void run()
+  68          {
+  69   1              get_Dis();
+  70   1              getShidu();
+  71   1              outDAC();
+  72   1              relayCount();
+  73   1              showSMG();
+  74   1              showLED();
+  75   1      }
+  76          void InitTimer()
+  77          {
+  78   1              TMOD=0x16;//定时器1为16位非重装载，定时器0为8位自动重装计数器
+  79   1              TL0=0xff;
+  80   1              TH0=0xff;
+  81   1              
+  82   1              TL1=(65535-100+1)%256;
+  83   1              TH1=(65535-100+1)/256;
+  84   1              
+  85   1              TR0=1;
+  86   1              ET0=1;
+  87   1              TR1=1;
+  88   1              ET1=1;
+  89   1              EA=1;
+  90   1      }
+  91          void serviceTimer0() interrupt 1
+  92          {
+  93   1              count_f++;
+  94   1      }
+  95          void serviceTimer1() interrupt 3
+  96          {
+  97   1              TL1=(65535-100+1)%256;//100us
+  98   1              TH1=(65535-100+1)/256;
+  99   1              count_t1++;
+ 100   1              if(count_t1==10000)
+ 101   1              {
+ 102   2                      freq=count_f;
+ 103   2                      count_t1=0;
+ 104   2                      count_f=0;
+ 105   2              }
+ 106   1              if(is_S7==1)
+ 107   1              {
+ 108   2                      count_t2++;
+ 109   2                      if(count_t2==10000)
+ 110   2                      {
+ 111   3                              is_1s=1;
+ 112   3                              count_t2=0;
+ 113   3                      }
+ 114   2              }
+ 115   1              count_ms1++;
+ 116   1              if(count_ms1==5000)
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 3   
+
+ 117   1              {
+ 118   2                      is_500ms=1;
+ 119   2                      count_ms1=0;
+ 120   2              }
+ 121   1              count_ms2++;//
+ 122   1              if(count_ms2==8)//这是100um定时器，count_ms2为10就是1ms
+ 123   1              {
+ 124   2                      pwm=0;//8-10输出低电平
+ 125   2              }
+ 126   1              else if(count_ms2==10)
+ 127   1              {
+ 128   2                      pwm=1;//0-8输出高电平
+ 129   2                      count_ms2=0;
+ 130   2              }
+ 131   1              count_ms3++;
+ 132   1              if(count_ms3==1000)//100ms
+ 133   1              {
+ 134   2                      if(is_led==0)
+ 135   2                      {
+ 136   3                              is_led=1;
+ 137   3                      }
+ 138   2                      else
+ 139   2                      {
+ 140   3                              is_led=0;
+ 141   3                      }
+ 142   2                      count_ms3=0;
+ 143   2              }
+ 144   1      }
+ 145          void HCSelect(unsigned char channel)
+ 146          {
+ 147   1              switch(channel)
+ 148   1              {
+ 149   2                      case 4:
+ 150   2                              P2=(P2&0x1f)|0x80;
+ 151   2                              break;
+ 152   2                      case 5:
+ 153   2                              P2=(P2&0x1f)|0xa0;
+ 154   2                              break;
+ 155   2                      case 6:
+ 156   2                              P2=(P2&0x1f)|0xc0;
+ 157   2                              break;
+ 158   2                      case 7:
+ 159   2                              P2=(P2&0x1f)|0xe0;
+ 160   2                              break;
+ 161   2              }
+ 162   1      }
+ 163          void InitSys()
+ 164          {
+ 165   1              HCSelect(5);
+ 166   1              P0=0x00;
+ 167   1              HCSelect(4);
+ 168   1              P0=0xff;
+ 169   1      }
+ 170          void displaySMG(unsigned char pos,unsigned char value)
+ 171          {
+ 172   1              HCSelect(6);
+ 173   1              P0=0x01<<pos;
+ 174   1              HCSelect(7);
+ 175   1              P0=value;
+ 176   1      }
+ 177          void delay(unsigned int t)
+ 178          {
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 4   
+
+ 179   1              while(t--);
+ 180   1      }
+ 181          void offSMG()
+ 182          {
+ 183   1              HCSelect(6);
+ 184   1              P0=0x00;
+ 185   1              HCSelect(7);
+ 186   1              P0=0xff;
+ 187   1      }
+ 188          void showSMG()
+ 189          {
+ 190   1              if(big_mode==1)
+ 191   1              {
+ 192   2                      displaySMG(0,SMG_number[15]);
+ 193   2                      delay(100);
+ 194   2                      offSMG();
+ 195   2                      if(freq_mode==1)
+ 196   2                      {
+ 197   3                              if(freq>99999)
+ 198   3                              {
+ 199   4                                      displaySMG(2,SMG_number[freq/100000]);
+ 200   4                                      delay(100);
+ 201   4                                      offSMG();
+ 202   4                              }
+ 203   3                              if(freq>9999)
+ 204   3                              {
+ 205   4                                      displaySMG(3,SMG_number[(freq%100000)/10000]);
+ 206   4                                      delay(100);
+ 207   4                                      offSMG();
+ 208   4                              }
+ 209   3                              if(freq>999)
+ 210   3                              {
+ 211   4                                      displaySMG(4,SMG_number[(freq%10000)/1000]);
+ 212   4                                      delay(100);
+ 213   4                                      offSMG();
+ 214   4                              }
+ 215   3                              if(freq>99)
+ 216   3                              {
+ 217   4                                      displaySMG(5,SMG_number[(freq%1000)/100]);
+ 218   4                                      delay(100);
+ 219   4                                      offSMG();
+ 220   4                              }
+ 221   3                              if(freq>9)
+ 222   3                              {
+ 223   4                                      displaySMG(6,SMG_number[(freq%100)/10]);
+ 224   4                                      delay(100);
+ 225   4                                      offSMG();
+ 226   4                              }
+ 227   3                              displaySMG(7,SMG_number[freq%10]);
+ 228   3                              delay(100);
+ 229   3                              offSMG();
+ 230   3                              
+ 231   3                      }
+ 232   2                      else if(freq_mode==2)
+ 233   2                      {
+ 234   3                              displaySMG(7,SMG_number[(freq%1000)/100]);
+ 235   3                              delay(100);
+ 236   3                              offSMG();
+ 237   3                              displaySMG(6,SMG_Dotnumber[(freq%10000)/1000]);
+ 238   3                              delay(100);
+ 239   3                              offSMG();
+ 240   3                              if(freq>9999)
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 5   
+
+ 241   3                              {
+ 242   4                                      displaySMG(5,SMG_number[(freq%100000)/10000]);
+ 243   4                                      delay(100);
+ 244   4                                      offSMG();
+ 245   4                              }
+ 246   3                              if(freq>99999)
+ 247   3                              {
+ 248   4                                      displaySMG(4,SMG_number[freq/100000]);
+ 249   4                                      delay(100);
+ 250   4                                      offSMG();
+ 251   4                              }
+ 252   3                              
+ 253   3                      }
+ 254   2              }
+ 255   1              else if(big_mode==2)
+ 256   1              {
+ 257   2                      displaySMG(0,0x89);
+ 258   2                      delay(100);
+ 259   2                      offSMG();
+ 260   2                      displaySMG(6,SMG_number[shidu/10]);
+ 261   2                      delay(100);
+ 262   2                      offSMG();
+ 263   2                      displaySMG(7,SMG_number[shidu%10]);
+ 264   2                      delay(100);
+ 265   2                      offSMG();
+ 266   2                      
+ 267   2              }
+ 268   1              else if(big_mode==3)
+ 269   1              {
+ 270   2                      displaySMG(0,SMG_number[10]);
+ 271   2                      delay(100);
+ 272   2                      offSMG();
+ 273   2                      if(ceju_mode==1)
+ 274   2                      {
+ 275   3                              if(distance>99)
+ 276   3                              {
+ 277   4                                      displaySMG(5,SMG_number[distance/100]);
+ 278   4                                      delay(100);
+ 279   4                                      offSMG();
+ 280   4                              }
+ 281   3                              if(distance>9)
+ 282   3                              {
+ 283   4                                      displaySMG(6,SMG_number[(distance%100)/10]);
+ 284   4                                      delay(100);
+ 285   4                                      offSMG();
+ 286   4                              }
+ 287   3                              displaySMG(7,SMG_number[distance%10]);
+ 288   3                              delay(100);
+ 289   3                              offSMG();
+ 290   3                      }
+ 291   2                      else if(ceju_mode==2)
+ 292   2                      {
+ 293   3                              displaySMG(5,SMG_Dotnumber[distance/100]);
+ 294   3                              delay(100);
+ 295   3                              offSMG();
+ 296   3                              displaySMG(6,SMG_number[(distance%100)/10]);
+ 297   3                              delay(100);
+ 298   3                              offSMG();
+ 299   3                              displaySMG(7,SMG_number[distance%10]);
+ 300   3                              delay(100);
+ 301   3                              offSMG();
+ 302   3      
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 6   
+
+ 303   3                      }
+ 304   2              }
+ 305   1              else if(big_mode==4)
+ 306   1              {
+ 307   2                      displaySMG(0,0x8c);//P
+ 308   2                      delay(100);
+ 309   2                      offSMG();
+ 310   2                      if(canshu_mode==1)
+ 311   2                      {
+ 312   3                              displaySMG(1,SMG_number[1]);
+ 313   3                              delay(100);
+ 314   3                              offSMG();
+ 315   3                              if(freq_canshu>9999)
+ 316   3                              {
+ 317   4                                      displaySMG(5,SMG_number[freq_canshu/10000]);
+ 318   4                                      delay(100);
+ 319   4                                      offSMG();
+ 320   4                              }
+ 321   3                              displaySMG(6,SMG_Dotnumber[(freq_canshu%10000)/1000]);
+ 322   3                              delay(100);
+ 323   3                              offSMG();
+ 324   3                              displaySMG(7,SMG_number[(freq_canshu%1000)/100]);
+ 325   3                              delay(100);
+ 326   3                              offSMG();
+ 327   3                              
+ 328   3                      }
+ 329   2                      else if(canshu_mode==2)
+ 330   2                      {
+ 331   3                              displaySMG(1,SMG_number[2]);
+ 332   3                              delay(100);
+ 333   3                              offSMG();
+ 334   3                              displaySMG(6,SMG_number[shidu_canshu/10]);
+ 335   3                              delay(100);
+ 336   3                              offSMG();
+ 337   3                              displaySMG(7,SMG_number[shidu_canshu%10]);
+ 338   3                              delay(100);
+ 339   3                              offSMG();
+ 340   3                      }
+ 341   2                      else if(canshu_mode==3)
+ 342   2                      {
+ 343   3                              displaySMG(1,SMG_number[3]);
+ 344   3                              delay(100);
+ 345   3                              offSMG();
+ 346   3                              displaySMG(6,SMG_Dotnumber[distance_canshu/100]);
+ 347   3                              delay(100);
+ 348   3                              offSMG();
+ 349   3                              displaySMG(7,SMG_number[(distance_canshu%100)/10]);
+ 350   3                              delay(100);
+ 351   3                              offSMG();
+ 352   3                      }
+ 353   2              }
+ 354   1      }
+ 355          void scanKey()
+ 356          {
+ 357   1              if(S4==0)
+ 358   1              {
+ 359   2                      delay(100);
+ 360   2                      if(S4==0)
+ 361   2                      {
+ 362   3                              if(big_mode==1)
+ 363   3                              {
+ 364   4                                      big_mode=2;
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 7   
+
+ 365   4                                      freq_mode=1;
+ 366   4                              }
+ 367   3                              else if(big_mode==2)
+ 368   3                              {
+ 369   4                                      big_mode=3;
+ 370   4                              }
+ 371   3                              else if(big_mode==3)
+ 372   3                              {
+ 373   4                                      big_mode=4;
+ 374   4                                      ceju_mode=1;
+ 375   4                              }
+ 376   3                              else if(big_mode==4)
+ 377   3                              {
+ 378   4                                      big_mode=1;
+ 379   4                                      canshu_mode=1;
+ 380   4                              }
+ 381   3                      }
+ 382   2                      while(S4==0)
+ 383   2                      {
+ 384   3                              run();
+ 385   3                      }
+ 386   2              }
+ 387   1              if(S5==0)
+ 388   1              {
+ 389   2                      delay(100);
+ 390   2                      if(S5==0)
+ 391   2                      {
+ 392   3                              if(big_mode==4)
+ 393   3                              {
+ 394   4                                      if(canshu_mode==3)
+ 395   4                                      {
+ 396   5                                              canshu_mode=1;
+ 397   5                                      }
+ 398   4                                      else
+ 399   4                                      {
+ 400   5                                              canshu_mode++;
+ 401   5                                      }
+ 402   4                                      
+ 403   4                              }
+ 404   3                      }
+ 405   2                      while(S5==0)
+ 406   2                      {
+ 407   3                              run();
+ 408   3                      }
+ 409   2              }
+ 410   1              if(S6==0)
+ 411   1              {
+ 412   2                      delay(100);
+ 413   2                      if(S6==0)
+ 414   2                      {
+ 415   3                              if(big_mode==4)
+ 416   3                              {
+ 417   4                                      if(canshu_mode==1)
+ 418   4                                      {
+ 419   5                                              if(freq_canshu==12000)
+ 420   5                                              {
+ 421   6                                                      freq_canshu=1000;
+ 422   6                                              }
+ 423   5                                              else
+ 424   5                                              {
+ 425   6                                                      freq_canshu+=500;
+ 426   6                                              }
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 8   
+
+ 427   5                                      }
+ 428   4                                      else if(canshu_mode==2)
+ 429   4                                      {
+ 430   5                                              if(shidu_canshu==60)
+ 431   5                                              {
+ 432   6                                                      shidu_canshu=10;
+ 433   6                                              }
+ 434   5                                              else
+ 435   5                                              {
+ 436   6                                                      shidu_canshu+=10;
+ 437   6                                              }
+ 438   5                                      }
+ 439   4                                      else if(canshu_mode==3)
+ 440   4                                      {
+ 441   5                                              if(distance_canshu==120)
+ 442   5                                              {
+ 443   6                                                      distance_canshu=10;
+ 444   6                                              }
+ 445   5                                              else
+ 446   5                                              {
+ 447   6                                                      distance_canshu+=10;
+ 448   6                                              }
+ 449   5                                      }
+ 450   4                              }
+ 451   3                              if(big_mode==3)
+ 452   3                              {
+ 453   4                                      if(ceju_mode==1)
+ 454   4                                      {
+ 455   5                                              ceju_mode=2;
+ 456   5                                      }
+ 457   4                                      else
+ 458   4                                      {
+ 459   5                                              ceju_mode=1;
+ 460   5                                      }
+ 461   4                              }
+ 462   3                      }
+ 463   2                      while(S6==0)
+ 464   2                      {
+ 465   3                              run();
+ 466   3                      }
+ 467   2      
+ 468   2              }
+ 469   1              if(S7==0)
+ 470   1              {
+ 471   2                      delay(100);
+ 472   2                      if(S7==0)
+ 473   2                      {
+ 474   3                              if(big_mode==4)
+ 475   3                              {
+ 476   4                                      if(canshu_mode==1)
+ 477   4                                      {
+ 478   5                                              if(freq_canshu==1000)
+ 479   5                                              {
+ 480   6                                                      freq_canshu=12000;
+ 481   6                                              }
+ 482   5                                              else
+ 483   5                                              {
+ 484   6                                                      freq_canshu-=500;
+ 485   6                                              }
+ 486   5                                      }
+ 487   4                                      else if(canshu_mode==2)
+ 488   4                                      {
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 9   
+
+ 489   5                                              if(shidu_canshu==10)
+ 490   5                                              {
+ 491   6                                                      shidu_canshu=60;
+ 492   6                                              }
+ 493   5                                              else
+ 494   5                                              {
+ 495   6                                                      shidu_canshu-=10;
+ 496   6                                              }
+ 497   5                                      }
+ 498   4                                      else if(canshu_mode==3)
+ 499   4                                      {
+ 500   5                                              if(distance_canshu==10)
+ 501   5                                              {
+ 502   6                                                      distance_canshu=120;
+ 503   6                                              }
+ 504   5                                              else
+ 505   5                                              {
+ 506   6                                                      distance_canshu-=10;
+ 507   6                                              }
+ 508   5                                      }
+ 509   4                              }
+ 510   3                              if(big_mode==1)
+ 511   3                              {
+ 512   4                                      if(freq_mode==1)
+ 513   4                                      {
+ 514   5                                              freq_mode=2;
+ 515   5                                      }
+ 516   4                                      else
+ 517   4                                      {
+ 518   5                                              freq_mode=1;
+ 519   5                                      }
+ 520   4                              }
+ 521   3                              if(big_mode==2)
+ 522   3                              {
+ 523   4                                      is_S7=1;
+ 524   4                                      
+ 525   4                              }
+ 526   3                      }
+ 527   2                      while(S7==0)
+ 528   2                      {
+ 529   3                              if(is_1s==1)
+ 530   3                              {
+ 531   4                                      count_relay=0;
+ 532   4                                      write_AT(0x00,count_relay);
+ 533   4                              }
+ 534   3                              run();
+ 535   3                      }
+ 536   2                      is_S7=0;
+ 537   2                      is_1s=0;
+ 538   2                      count_t2=0;
+ 539   2              }
+ 540   1      }
+ 541          void getShidu()
+ 542          {
+ 543   1              RB2=read_PCF(0x03);
+ 544   1              if(RB2>=255)
+ 545   1              {
+ 546   2                      shidu=99;
+ 547   2              }
+ 548   1              else
+ 549   1              {
+ 550   2                      shidu=(100*RB2)/255;
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 10  
+
+ 551   2              }
+ 552   1      }
+ 553          void outDAC()
+ 554          {
+ 555   1              if(shidu<=shidu_canshu)
+ 556   1              {
+ 557   2                      write_PCF(51);
+ 558   2              }
+ 559   1              else if(shidu>=80)
+ 560   1              {
+ 561   2                      write_PCF(255);
+ 562   2              }
+ 563   1              else
+ 564   1              {
+ 565   2                      unsigned char temp;
+ 566   2                      temp=((shidu-shidu_canshu)/(80-shidu_canshu))*204+51;
+ 567   2                      write_PCF(temp);
+ 568   2              }
+ 569   1              
+ 570   1      }
+ 571          void relayCount()
+ 572          {
+ 573   1              HCSelect(5);
+ 574   1              if(pwm==1)
+ 575   1              {
+ 576   2                      pwmkey=0;//输出高电平
+ 577   2              }
+ 578   1              else
+ 579   1              {
+ 580   2                      pwmkey=1;//输出低电平
+ 581   2              }
+ 582   1              if(distance>distance_canshu)
+ 583   1              {
+ 584   2                      if(relay==0)
+ 585   2                      {
+ 586   3                              count_relay++;
+ 587   3                              relay=1;
+ 588   3                              write_AT(0x00,count_relay);
+ 589   3                      }
+ 590   2              }
+ 591   1              else
+ 592   1              {
+ 593   2                      relay=0;
+ 594   2              }
+ 595   1              if(relay==1)//继电器吸合
+ 596   1              {
+ 597   2                      P0=(P0&0x20)|0x10;
+ 598   2              }
+ 599   1              else
+ 600   1              {
+ 601   2                      P0=P0&0x20;
+ 602   2              }
+ 603   1      
+ 604   1      }
+ 605          
+ 606          void read_Dis()
+ 607          {
+ 608   1              unsigned char num=8;
+ 609   1              TX=0;
+ 610   1              CL=0xf3;//12us
+ 611   1              CH=0xff;
+ 612   1              CR=1;//PCA计时
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 11  
+
+ 613   1              while(num--)
+ 614   1              {
+ 615   2                      while(!CF);//12u后CF=1，跳出循环
+ 616   2                      TX=~TX;
+ 617   2                      CL=0xf3;
+ 618   2                      CH=0xff;
+ 619   2                      CF=0;
+ 620   2                      
+ 621   2              }
+ 622   1              CR=0;
+ 623   1              CL=0;
+ 624   1              CH=0;
+ 625   1              CR=1;
+ 626   1              while(RX &&(!CF));//RX=0表示收到脉冲
+ 627   1              CR=0;
+ 628   1              if(CF)//CF=0发生溢出
+ 629   1              {
+ 630   2                      CF=0;
+ 631   2                      distance=255;
+ 632   2              }
+ 633   1              else
+ 634   1              {
+ 635   2                      distance=((CH<<8)+CL)*0.017;
+ 636   2              }
+ 637   1              
+ 638   1      }
+ 639          void get_Dis()
+ 640          {
+ 641   1              if(is_500ms)
+ 642   1              {
+ 643   2                      read_Dis();
+ 644   2              }
+ 645   1              is_500ms=0;
+ 646   1      }
+ 647          void showLED()
+ 648          {
+ 649   1              HCSelect(4);
+ 650   1              if(big_mode==1)
+ 651   1              {
+ 652   2                      P0=0xfe;
+ 653   2              }
+ 654   1              else if(big_mode==2)
+ 655   1              {
+ 656   2                      P0=0xfd;
+ 657   2              }
+ 658   1              else if(big_mode==3)
+ 659   1              {
+ 660   2                      P0=0xfb;
+ 661   2              }
+ 662   1              else if(big_mode==4)
+ 663   1              {
+ 664   2                      if(canshu_mode==1)
+ 665   2                      {
+ 666   3                              if(is_led==1)
+ 667   3                              {
+ 668   4                                      P0=0xfe;
+ 669   4                              }
+ 670   3                              else
+ 671   3                              {
+ 672   4                                      P0=0xff;
+ 673   4                              }
+ 674   3                      }
+C51 COMPILER V9.56.0.0   MAIN                                                              05/25/2024 22:05:51 PAGE 12  
+
+ 675   2                      else if(canshu_mode==2)
+ 676   2                      {
+ 677   3                              if(is_led==1)
+ 678   3                              {
+ 679   4                                      P0=0xfd;
+ 680   4                              }
+ 681   3                              else
+ 682   3                              {
+ 683   4                                      P0=0xff;
+ 684   4                              }
+ 685   3                      }
+ 686   2                      else if(canshu_mode==3)
+ 687   2                      {
+ 688   3                              if(is_led==1)
+ 689   3                              {
+ 690   4                                      P0=0xfb;
+ 691   4                              }
+ 692   3                              else
+ 693   3                              {
+ 694   4                                      P0=0xff;
+ 695   4                              }
+ 696   3                      }
+ 697   2              }
+ 698   1              if(freq>freq_canshu)
+ 699   1              {
+ 700   2                      P0=P0&0xf7;
+ 701   2              }
+ 702   1              if(shidu>shidu_canshu)
+ 703   1              {
+ 704   2                      P0=P0&0xef;
+ 705   2              }
+ 706   1              if(distance>distance_canshu)
+ 707   1              {
+ 708   2                      P0=P0&0xdf;
+ 709   2              }
+ 710   1              delay(500);
+ 711   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2366    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     37       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,4 @@
+".\Objects\STARTUP.obj",
+".\Objects\chuankou4.obj" 
+TO ".\Objects\chuankou4" 
+PRINT(".\Listings\chuankou4.m51") RAMSIZE(256) 

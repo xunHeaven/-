@@ -1,0 +1,161 @@
+C51 COMPILER V9.56.0.0   CHUANKOU4                                                         05/31/2024 21:15:46 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE CHUANKOU4
+OBJECT MODULE PLACED IN .\Objects\chuankou4.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE chuankou4.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Lis
+                    -tings\chuankou4.lst) OBJECT(.\Objects\chuankou4.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include <stdio.h>
+   3          #include <intrins.h>
+   4          #include <string.h>
+   5          unsigned char temper_canshu=30;
+   6          unsigned char distance_canshu=35;
+   7          unsigned char temper=28;
+   8          unsigned char distance=50;
+   9          unsigned char R_arr[20];
+  10          unsigned char Rindex;
+  11          unsigned char code order1[]="ST\r\n";
+  12          unsigned char code order2[]="PARA\r\n";
+  13          
+  14          int res1=1;
+  15          int res2=1;
+  16          
+  17          void UartInit();
+  18          void sendString(unsigned char *str);
+  19          void sendByte(unsigned char dat);
+  20          char putchar(char ch);
+  21          void work();
+  22          void Delay500ms();
+  23          
+  24          void main()
+  25          {
+  26   1              UartInit();
+  27   1              Delay500ms();
+  28   1              sendString("hELLO\r\n");
+  29   1              while(1)
+  30   1              {
+  31   2                      work();
+  32   2              }
+  33   1      }
+  34          void UartInit()
+  35          {
+  36   1              SCON = 0x50;            //8位数据,可变波特率
+  37   1              AUXR |= 0x01;           //串口1选择定时器2为波特率发生器
+  38   1              AUXR &= 0xFB;           //定时器2时钟为Fosc/12,即12T
+  39   1              T2L = 0xCC;             //设定定时初值
+  40   1              T2H = 0xFF;             //设定定时初值
+  41   1              AUXR |= 0x10;           //启动定时器2
+  42   1              ES=1;
+  43   1              EA=1;
+  44   1      }
+  45          
+  46          /*void sendByte(unsigned char dat)
+  47          {
+  48                  SBUF=dat;
+  49                  while(TI==0);//发送成功TI=1,跳出循环
+  50                  TI=0;
+  51          }*/
+  52          void sendString(unsigned char *str)
+  53          {
+  54   1              while(*str !='\0')
+C51 COMPILER V9.56.0.0   CHUANKOU4                                                         05/31/2024 21:15:46 PAGE 2   
+
+  55   1              {
+  56   2                      SBUF=*str;
+  57   2                      while(TI==0);
+  58   2                      TI=0;
+  59   2                      str++;
+  60   2              }
+  61   1      }
+  62          char putchar(char ch)
+  63          {
+  64   1              SBUF=ch;
+  65   1              while(TI==0);
+  66   1              TI=0;
+  67   1              return ch;
+  68   1      }
+  69          void serviceUart() interrupt 4
+  70          {
+  71   1              if(RI==1)
+  72   1              {
+  73   2                      R_arr[Rindex]=SBUF;
+  74   2                      
+  75   2                      Rindex++;
+  76   2                      RI=0;
+  77   2                      /*if(R_arr[Rindex]!='\n')
+  78   2                      {
+  79   2                              Rindex++;
+  80   2                      }
+  81   2                      else
+  82   2                      {
+  83   2                              Rindex=0;
+  84   2                      }*/
+  85   2                      
+  86   2              }
+  87   1      }
+  88          void work()
+  89          {
+  90   1              if((Rindex!=0)&&(R_arr[Rindex-1]=='\n'))
+  91   1              {
+  92   2                      unsigned char i;
+  93   2                      //res1=strcmp(order1,R_arr);//两个字符串相等则为0；
+  94   2                      //res2=strcmp(order2,R_arr);
+  95   2      //              if(res1==0)
+  96   2                      if((R_arr[0]=='S')&&(R_arr[1]=='T')/*&&(R_arr[2]=='\r')&&(R_arr[3]=='\n')*/)
+  97   2                      {
+  98   3                              printf("$%d,%d\r\n",(int)distance,(int)temper);
+  99   3                      }
+ 100   2                      else if((R_arr[0]=='P')&&(R_arr[1]=='A')&&(R_arr[2]=='R')&&(R_arr[3]=='A'))
+ 101   2                      {
+ 102   3                              printf("#%d,%d\r\n",(int)distance_canshu,(int)temper_canshu);
+ 103   3                      }
+ 104   2                      else
+ 105   2                      {
+ 106   3                              printf("ERROR\r\n");
+ 107   3                      }
+ 108   2                      Rindex=0;
+ 109   2                      for(i=0;i<20;i++)
+ 110   2                      {
+ 111   3                              R_arr[i]=0;
+ 112   3                      }
+ 113   2                      
+ 114   2              }
+ 115   1      }
+ 116          
+C51 COMPILER V9.56.0.0   CHUANKOU4                                                         05/31/2024 21:15:46 PAGE 3   
+
+ 117          void Delay500ms()               //@12.000MHz
+ 118          {
+ 119   1              unsigned char i, j, k;
+ 120   1      
+ 121   1              _nop_();
+ 122   1              _nop_();
+ 123   1              i = 23;
+ 124   1              j = 205;
+ 125   1              k = 120;
+ 126   1              do
+ 127   1              {
+ 128   2                      do
+ 129   2                      {
+ 130   3                              while (--k);
+ 131   3                      } while (--j);
+ 132   2              } while (--i);
+ 133   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    231    ----
+   CONSTANT SIZE    =     46    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     29       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

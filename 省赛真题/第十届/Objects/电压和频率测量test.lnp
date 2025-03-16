@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\iic.obj",
+".\Objects\main.obj" 
+TO ".\Objects\电压和频率测量test" 
+PRINT(".\Listings\电压和频率测量test.m51") RAMSIZE(256) 

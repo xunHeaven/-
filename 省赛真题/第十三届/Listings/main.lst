@@ -1,0 +1,441 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <intrins.h>
+   2          #include <STC15F2K60S2.H>
+   3          #include "ds1302.h"
+   4          #include "onewire.h"
+   5          #include <stdio.h>
+   6          
+   7          sbit relay=P0^4;//继电器
+   8          sbit buzzer=P0^6;
+   9          sbit R1=P3^3;
+  10          sbit R2=P3^2;
+  11          sbit C1=P3^5;
+  12          sbit C2=P3^4;
+  13          sbit L1=P0^0;
+  14          sbit L3=P0^2;//3号LED灯
+  15          sbit L2=P0^1;
+  16          
+  17          
+  18          unsigned char code SMG_number[]=
+  19                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0x88,0x80,0xc6,
+  20                  0xc0,0x86,0x8e,0xbf,0x7f};//数码管段码，0-f和-.
+  21          unsigned char code SMG_Dotnumber[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10}; 
+  22          //U-0xc1
+  23          unsigned char SMG_mode=1;//数码管显示模式
+  24          unsigned char LED_mode=0;//0为温度控制标记，1为时间控制
+  25          unsigned int temp;//存储温度
+  26          unsigned int temp1=23;//这是给定的温度，将与读出的进行比较
+  27          unsigned char S17key=0;//s17按下标记
+  28          unsigned char zhengdian=0;//整点标记，为0时非整点
+  29          unsigned char relayKey=0;//继电器控制标记，为0时断开，为1时吸合；
+  30          unsigned int count_t=0;//计时器计数；
+  31          unsigned char count_5s=0;//5s计时
+  32          unsigned char L3key=1;//3号LED灯
+  33          
+  34          void Initsys();//对单片机进行初始化
+  35          void SelectHC(unsigned char channel);
+  36          void display_SMG(unsigned char pos,unsigned char value);//数码管位选和段选
+  37          void offSMG();//关掉所有数码管
+  38          void showSMG();//数码管显示控制
+  39          void showLED();//LED闪烁控制
+  40          void selectLED();
+  41          void scanKey();//按键控制函数
+  42          void ctrlRelay(unsigned char relayKey);//继电器控制函数
+  43          void delaySMG(unsigned char t);//延时函数、
+  44          void InitTimer();
+  45          
+  46          void main()
+  47          {
+  48   1              Initsys();
+  49   1              InitTimer();
+  50   1              write_date();
+  51   1              while(1)
+  52   1              {
+  53   2                      read_date();
+  54   2                      temp=read_Temp();
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 2   
+
+  55   2                      if((Timer[0]==0)&&(Timer[1]==0))
+  56   2                      {
+  57   3                              zhengdian=1;//整点标记启动
+  58   3                              count_5s=100;
+  59   3                      }
+  60   2                      scanKey();
+  61   2                      showSMG();
+  62   2                      showLED();
+  63   2              }
+  64   1      }
+  65          void InitTimer()//50ms
+  66          {
+  67   1              TMOD = 0x01;                    //设置定时器为模式0(16位自动重装载)
+  68   1          TL0 = (65535-50000+1)%256;                     //初始化计时值
+  69   1          TH0 = (65536-50000+1)/256;
+  70   1          TR0 = 1;                        //定时器0开始计时
+  71   1          ET0= 1;                        //使能定时器0中断
+  72   1          EA = 1;
+  73   1      }
+  74          
+  75          
+  76          void ServiceTimer() interrupt 1
+  77          {
+  78   1              TL0 = (65535-50000+1)%256;                     //初始化计时值
+  79   1              TH0 = (65536-50000+1)/256;
+  80   1              
+  81   1              if(zhengdian==1)
+  82   1              {
+  83   2                      count_5s--;//倒计时5s
+  84   2                      if(count_5s==0)
+  85   2                      {
+  86   3                              zhengdian=0;
+  87   3                      }
+  88   2              }
+  89   1              if(relayKey==1)
+  90   1              {
+  91   2                      count_t++;
+  92   2                      if(count_t==2)
+  93   2                      {
+  94   3                              if(L3key==1)
+  95   3                              {
+  96   4                                      L3key=0;
+  97   4                              }
+  98   3                              else
+  99   3                              {
+ 100   4                                      L3key=1;
+ 101   4                              }
+ 102   3                              count_t=0;
+ 103   3                      }
+ 104   2              }
+ 105   1              
+ 106   1      }
+ 107          
+ 108          void SelectHC(unsigned char channel)
+ 109          {
+ 110   1              switch(channel)
+ 111   1              {
+ 112   2                      case 4:
+ 113   2                              P2=(P2&0x1f)|0x80;
+ 114   2                              break;
+ 115   2                      case 5:
+ 116   2                              P2=(P2&0x1f)|0xa0;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 3   
+
+ 117   2                              break;
+ 118   2                      case 6:
+ 119   2                              P2=(P2&0x1f)|0xc0;
+ 120   2                              break;
+ 121   2                      case 7:
+ 122   2                              P2=(P2&0x1f)|0xe0;
+ 123   2                              break;
+ 124   2              }
+ 125   1      }
+ 126          void ctrlRelay(unsigned char relayKey)
+ 127          {
+ 128   1              SelectHC(5);
+ 129   1              if(relayKey==0)//继电器吸合
+ 130   1              {
+ 131   2                      relay=1;
+ 132   2                      buzzer=0;
+ 133   2      
+ 134   2              }
+ 135   1              else if(relayKey==1)//继电器关闭
+ 136   1              {
+ 137   2                      relay=0;
+ 138   2                      buzzer=0;
+ 139   2      
+ 140   2              }
+ 141   1      }
+ 142          void Initsys()
+ 143          {
+ 144   1              SelectHC(5);
+ 145   1              P0=0xaf;
+ 146   1              SelectHC(4);
+ 147   1              P0=0xff;
+ 148   1      }
+ 149          void display_SMG(unsigned char pos, unsigned char value)
+ 150          {
+ 151   1              
+ 152   1              SelectHC(6);
+ 153   1              P0=(0x01<<pos);
+ 154   1              SelectHC(7);
+ 155   1              P0=value;
+ 156   1      }
+ 157          void offSMG()
+ 158          {
+ 159   1              SelectHC(6);
+ 160   1              P0=0x00;
+ 161   1              SelectHC(7);
+ 162   1              P0=0xff;
+ 163   1      }
+ 164          void delaySMG(unsigned int t)
+ 165          {
+*** WARNING C235 IN LINE 165 OF main.c: parameter 1: different types
+ 166   1              while(t--);
+ 167   1      }
+ 168          void showSMG()
+ 169          {
+ 170   1              if(SMG_mode==1)//显示温度
+ 171   1              {
+ 172   2                      display_SMG(0,0xc1);
+ 173   2                      delaySMG(100);
+ 174   2                      display_SMG(1,SMG_number[SMG_mode]);
+ 175   2                      delaySMG(100);
+ 176   2                      display_SMG(5,SMG_number[temp/100]);
+ 177   2                      delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 4   
+
+ 178   2                      display_SMG(6,SMG_Dotnumber[(temp%100)/10]);
+ 179   2                      delaySMG(100);
+ 180   2                      display_SMG(7,SMG_number[temp%10]);
+ 181   2                      delaySMG(100);
+ 182   2                      offSMG();
+ 183   2              }
+ 184   1              else if(SMG_mode==2)//显示时间
+ 185   1              {
+ 186   2                      read_date();
+ 187   2                      if(S17key==0)
+ 188   2                      {
+ 189   3                              display_SMG(0,0xc1);
+ 190   3                              delaySMG(100);
+ 191   3                              display_SMG(1,SMG_number[SMG_mode]);
+ 192   3                              delaySMG(100);
+ 193   3                              display_SMG(3,SMG_number[Timer[2]/16]);//显示时
+ 194   3                              delaySMG(100);
+ 195   3                              display_SMG(4,SMG_number[Timer[2]%16]);
+ 196   3                              delaySMG(100);
+ 197   3                              
+ 198   3                              display_SMG(5,0xbf);
+ 199   3                              delaySMG(100);
+ 200   3                              
+ 201   3                              display_SMG(6,SMG_number[Timer[1]/16]);//显示分
+ 202   3                              delaySMG(100);
+ 203   3                              display_SMG(7,SMG_number[Timer[1]%16]);
+ 204   3                              delaySMG(100);
+ 205   3                              offSMG();
+ 206   3                              
+ 207   3                      }
+ 208   2                      else if(S17key==1)
+ 209   2                      {
+ 210   3                              display_SMG(0,0xc1);
+ 211   3                              delaySMG(100);
+ 212   3                              display_SMG(1,SMG_number[SMG_mode]);
+ 213   3                              delaySMG(100);
+ 214   3                              display_SMG(3,SMG_number[Timer[1]/16]);//显示分
+ 215   3                              delaySMG(100);
+ 216   3                              display_SMG(4,SMG_number[Timer[1]%16]);
+ 217   3                              delaySMG(100);
+ 218   3                              
+ 219   3                              display_SMG(5,0xbf);
+ 220   3                              delaySMG(100);
+ 221   3                              
+ 222   3                              display_SMG(6,SMG_number[Timer[0]/16]);//显示秒
+ 223   3                              delaySMG(100);
+ 224   3                              display_SMG(7,SMG_number[Timer[0]%16]);
+ 225   3                              delaySMG(100);
+ 226   3                              offSMG();
+ 227   3                      }
+ 228   2              }
+ 229   1              else if(SMG_mode==3)//参数设置界面
+ 230   1              {
+ 231   2                      display_SMG(0,0xc1);
+ 232   2                      delaySMG(100);
+ 233   2                      display_SMG(1,SMG_number[SMG_mode]);
+ 234   2                      delaySMG(100);
+ 235   2                      
+ 236   2                      display_SMG(6,SMG_number[temp1/10]);
+ 237   2                      delaySMG(100);
+ 238   2                      display_SMG(7,SMG_number[temp1%10]);
+ 239   2                      delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 5   
+
+ 240   2                      offSMG();
+ 241   2              }
+ 242   1      }
+ 243          
+ 244          void scanKey()
+ 245          {
+ 246   1              R1=0;
+ 247   1              R2=1;
+ 248   1              C1=C2=1;
+ 249   1              if(C1==0)//S12
+ 250   1              {
+ 251   2                      delaySMG(100);
+ 252   2                      if(C1==0)
+ 253   2                      {
+ 254   3                              if(SMG_mode==3)
+ 255   3                              {
+ 256   4                                      SMG_mode=1;
+ 257   4                              }
+ 258   3                              else
+ 259   3                              {
+ 260   4                                      SMG_mode++;
+ 261   4                              }
+ 262   3                      }
+ 263   2                      while(C1==0)
+ 264   2                      {
+ 265   3                              showSMG();
+ 266   3                              showLED();
+ 267   3                      }
+ 268   2              }
+ 269   1              else if(C2==0)//S16
+ 270   1              {
+ 271   2                      delaySMG(100);
+ 272   2                      if(C2==0)
+ 273   2                      {
+ 274   3                              if(SMG_mode==3)
+ 275   3                              {
+ 276   4                                      if(temp1==99)
+ 277   4                                      {
+ 278   5                                              temp1=10;
+ 279   5                                      }
+ 280   4                                      else
+ 281   4                                      {
+ 282   5                                              temp1++;
+ 283   5                                      }
+ 284   4                              }
+ 285   3                      }
+ 286   2                      while(C2==0)
+ 287   2                      {
+ 288   3                              showSMG();
+ 289   3                              showLED();
+ 290   3                      }
+ 291   2              }
+ 292   1              
+ 293   1              R2=0;
+ 294   1              R1=1;
+ 295   1              C1=C2=1;
+ 296   1              if(C1==0)//S13
+ 297   1              {
+ 298   2                      delaySMG(100);
+ 299   2                      if(C1==0)
+ 300   2                      {
+ 301   3                              if(LED_mode==0)
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 6   
+
+ 302   3                              {
+ 303   4                                      LED_mode=1;
+ 304   4                              }
+ 305   3                              else
+ 306   3                              {
+ 307   4                                      LED_mode=0;
+ 308   4                              }
+ 309   3                      }
+ 310   2                      while(C1==0)
+ 311   2                      {
+ 312   3                              showSMG();
+ 313   3                              showLED();
+ 314   3                      }
+ 315   2              }
+ 316   1              else if(C2==0)//S17
+ 317   1              {
+ 318   2                      delaySMG(100);
+ 319   2                      if(C2==0)
+ 320   2                      {
+ 321   3                              if(SMG_mode==2)
+ 322   3                              {
+ 323   4                                      S17key=1;
+ 324   4                              }
+ 325   3                              if(SMG_mode==3)
+ 326   3                              {
+ 327   4                                      if(temp1==10)
+ 328   4                                      {
+ 329   5                                              temp1=99;
+ 330   5                                      }
+ 331   4                                      else
+ 332   4                                      {
+ 333   5                                              temp1--;
+ 334   5                                      }
+ 335   4                              }
+ 336   3                      }
+ 337   2                      while(C2==0)
+ 338   2                      {
+ 339   3                              showSMG();
+ 340   3                              showLED();
+ 341   3                      }
+ 342   2                      S17key=0;
+ 343   2              }
+ 344   1      }
+ 345          void selectLED()
+ 346          {
+ 347   1              
+ 348   1              SelectHC(4);
+ 349   1              P0=0xff;
+ 350   1              
+ 351   1      }
+ 352          void showLED()
+ 353          {
+ 354   1              selectLED();
+ 355   1              if(zhengdian==1)
+ 356   1              {
+ 357   2                      SelectHC(4);
+ 358   2                      L1=0;
+ 359   2              }
+ 360   1              if(LED_mode==0)//温度控制模式
+ 361   1              {
+ 362   2                      SelectHC(4);
+ 363   2                      L2=0;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/09/2024 20:44:00 PAGE 7   
+
+ 364   2                      if(temp>(temp1*10))
+ 365   2                      {
+ 366   3                              SelectHC(4);
+ 367   3                              L3=L3key;
+ 368   3                              ctrlRelay(0);
+ 369   3                              selectLED();
+ 370   3                              relayKey=1;
+ 371   3                      }
+ 372   2                      else
+ 373   2                      {
+ 374   3                              SelectHC(4);
+ 375   3                              L3=1;
+ 376   3                              ctrlRelay(1);
+ 377   3                              selectLED();
+ 378   3                              relayKey=0;
+ 379   3                      }
+ 380   2              }
+ 381   1              else if(LED_mode==1)//时间控制模式
+ 382   1              {
+ 383   2                      if(zhengdian==1)
+ 384   2                      {
+ 385   3                              SelectHC(4);
+ 386   3                              L3=L3key;
+ 387   3                              ctrlRelay(0);
+ 388   3                              selectLED();
+ 389   3                              relayKey=1;
+ 390   3                      }
+ 391   2                      else
+ 392   2                      {
+ 393   3                              SelectHC(4);
+ 394   3                              L3=1;
+ 395   3                              ctrlRelay(1);
+ 396   3                              selectLED();
+ 397   3                              relayKey=0;
+ 398   3                      }
+ 399   2              
+ 400   2              }
+ 401   1              SelectHC(4);
+ 402   1              P0=0xff;
+ 403   1              
+ 404   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    882    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     13    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

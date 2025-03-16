@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\ligntingCtrl.obj",
+".\Objects\iic.obj" 
+TO ".\Objects\²ÊµÆ¿ØÖÆÆ÷test" 
+PRINT(".\Listings\²ÊµÆ¿ØÖÆÆ÷test.m51") RAMSIZE(256) 

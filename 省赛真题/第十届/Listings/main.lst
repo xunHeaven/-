@@ -1,0 +1,358 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include <intrins.h>
+   3          #include "iic.h"
+   4          sbit S7=P3^0;
+   5          sbit S6=P3^1;
+   6          sbit S5=P3^2;
+   7          sbit S4=P3^3;
+   8          
+   9          unsigned char code SMG_number[]=
+  10                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,
+  11               0x80,0x90,0x88,0x83,0xc6,0xc0,0x86,0x8e,
+  12                  0xbf,0x7f};//数码管段码，0-f和-.
+  13          unsigned char code SMG_Dotnumber[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10};
+  14          unsigned char SMG_mode=0;//数码管显示模式，0为电压显示界面，1为频率显示界面
+  15          unsigned char LED_mode=0;//LED显示模式，0为电压模式，1为频率模式
+  16          unsigned char S5_key=0;//电压输出模式转换，0时电压值为2，1时电压值根据RB2变化。按下S5实现模式转换
+  17          unsigned char S6_key=0;//LED灯启用模式，0时点亮，1时关闭。按下S6实现模式转换
+  18          unsigned char S7_key=0;//数码管启用模式，0时点亮，1时关闭。按下S7实现模式转换
+  19          
+  20          //下面三个是为了计算频率
+  21          unsigned int dat_f=0;//显示在数码管中的频率值，每秒计算；
+  22          unsigned int count_f=0;//在定时器0中计算一秒的频率
+  23          unsigned char count_t=0;//记录时间，一秒后更新
+  24          //下面两个变量是为了表示电压
+  25          unsigned int v1=200;//表示数码管显示电压，初始化为固定电压2
+  26          unsigned int v2;//RB2中的电压
+  27          
+  28          //函数声明
+  29          void InitSys();//初始化单片机，关掉蜂鸣器继电器等无关设备
+  30          void SelectHC(unsigned char channel);//选择HC573锁存器
+  31          void display_SMG(unsigned char pos,unsigned char value);//选择点亮的数码管和点亮内容
+  32          void off_SMG();//关掉所有数码管
+  33          void delaySMG(unsigned int t);//数码管延时函数
+  34          void show_SMG();//数码管显示控制函数
+  35          void show_LED();//LED显示函数
+  36          void scanKey();//按键操作函数
+  37          void InitTimer();//定时器函数初始化
+  38          //void ServiceTimer0() interrupt 1;//定时器0，用于频率计数
+  39          //void ServiceTimer1() interrupt 3;//定时器1，用于计时
+  40           
+  41          
+  42          void main()
+  43          {
+  44   1              InitSys();
+  45   1              InitTimer();
+  46   1              while(1)
+  47   1              {
+  48   2                      v2=((unsigned char)readPCF(0x03))*100/51;
+  49   2                      if(S5_key==0)
+  50   2                      {
+  51   3                              v1=200;
+  52   3                      }
+  53   2                      else
+  54   2                      {
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 2   
+
+  55   3                              v1=v2;
+  56   3                      }
+  57   2                      scanKey();
+  58   2                      show_SMG();
+  59   2                      show_LED();
+  60   2              }
+  61   1      }
+  62          void InitSys()
+  63          {
+  64   1              SelectHC(4);
+  65   1              P0=0xff;
+  66   1              SelectHC(5);
+  67   1              P0=P0&0xaf;
+  68   1      }
+  69          void SelectHC(unsigned char channel)
+  70          {
+  71   1              switch(channel)
+  72   1              {
+  73   2                      case 4:
+  74   2                              P2=(P2&0x1f)|0x80;
+  75   2                              break;
+  76   2                      case 5:
+  77   2                              P2=(P2&0x1f)|0xa0;
+  78   2                              break;
+  79   2                      case 6:
+  80   2                              P2=(P2&0x1f)|0xc0;
+  81   2                              break;
+  82   2                      case 7:
+  83   2                              P2=(P2&0x1f)|0xe0;
+  84   2                              break;
+  85   2              }
+  86   1      }
+  87          void display_SMG(unsigned char pos,unsigned char value)
+  88          {
+  89   1              SelectHC(7);
+  90   1              P0=0xff;
+  91   1              SelectHC(6);
+  92   1              P0=0x01<<pos;
+  93   1              SelectHC(7);
+  94   1              P0=value;
+  95   1      }
+  96          void off_SMG()
+  97          {
+  98   1              SelectHC(6);
+  99   1              P0=0xff;
+ 100   1              SelectHC(7);
+ 101   1              P0=0xff;
+ 102   1      }
+ 103          void delaySMG(unsigned int t)
+ 104          {
+ 105   1              while(t--);
+ 106   1      }
+ 107          void show_SMG()
+ 108          {
+ 109   1              if(S7_key==0)//数码管启用
+ 110   1              {
+ 111   2                      if(SMG_mode==0)//数码管显示电压
+ 112   2                      {
+ 113   3                              display_SMG(0,0xc1);
+ 114   3                              delaySMG(100);
+ 115   3                              display_SMG(5,SMG_Dotnumber[v1/100]);
+ 116   3                              delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 3   
+
+ 117   3                              display_SMG(6,SMG_number[(v1%100)/10]);
+ 118   3                              delaySMG(100);
+ 119   3                              display_SMG(7,SMG_number[v1%10]);
+ 120   3                              delaySMG(100);
+ 121   3                              off_SMG();
+ 122   3                      }
+ 123   2                      else if(SMG_mode==1)//数码管显示频率
+ 124   2                      {
+ 125   3                              display_SMG(0,0x8e);
+ 126   3                              delaySMG(100);
+ 127   3                              if(dat_f>9999)
+ 128   3                              {
+ 129   4                                      display_SMG(3,SMG_number[dat_f/10000]);
+ 130   4                                      delaySMG(100);
+ 131   4                              }
+ 132   3                              if(dat_f>999)
+ 133   3                              {
+ 134   4                                      display_SMG(4,SMG_number[(dat_f/1000)%10]);
+ 135   4                                      delaySMG(100);
+ 136   4                              }
+ 137   3                              if(dat_f>99)
+ 138   3                              {
+ 139   4                                      display_SMG(5,SMG_number[(dat_f/100)%10]);
+ 140   4                                      delaySMG(100);
+ 141   4                              }
+ 142   3                              if(dat_f>9)
+ 143   3                              {
+ 144   4                                      display_SMG(6,SMG_number[(dat_f/10)%10]);
+ 145   4                                      delaySMG(100);
+ 146   4                              }
+ 147   3                              display_SMG(7,SMG_number[dat_f%10]);
+ 148   3                              delaySMG(100);
+ 149   3                              off_SMG();
+ 150   3                      }
+ 151   2              }
+ 152   1              else//S7_key==1,数码管关闭
+ 153   1              {
+ 154   2                      off_SMG();
+ 155   2              }
+ 156   1      }
+ 157          
+ 158          void scanKey()
+ 159          {
+ 160   1              if(S7==0)
+ 161   1              {
+ 162   2                      delaySMG(100);
+ 163   2                      if(S7==0)
+ 164   2                      {
+ 165   3                              if(S7_key==0)
+ 166   3                              {
+ 167   4                                      S7_key=1;
+ 168   4                              }
+ 169   3                              else
+ 170   3                              {
+ 171   4                                      S7_key=0;
+ 172   4                              }
+ 173   3                      }
+ 174   2                      while(S7==0)
+ 175   2                      {
+ 176   3                              show_SMG();
+ 177   3                              show_LED();
+ 178   3                      }
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 4   
+
+ 179   2              }
+ 180   1              if(S6==0)
+ 181   1              {
+ 182   2                      delaySMG(100);
+ 183   2                      if(S6==0)
+ 184   2                      {
+ 185   3                              if(S6_key==0)
+ 186   3                              {
+ 187   4                                      S6_key=1;
+ 188   4                              }
+ 189   3                              else
+ 190   3                              {
+ 191   4                                      S6_key=0;
+ 192   4                              }
+ 193   3                      }
+ 194   2                      while(S6==0)
+ 195   2                      {
+ 196   3                              show_SMG();
+ 197   3                              show_LED();
+ 198   3                      }
+ 199   2              }
+ 200   1              if(S5==0)
+ 201   1              {
+ 202   2                      delaySMG(100);
+ 203   2                      if(S5==0)
+ 204   2                      {
+ 205   3                              if(S5_key==0)
+ 206   3                              {
+ 207   4                                      S5_key=1;
+ 208   4                                      v1=v2;
+ 209   4                              }
+ 210   3                              else
+ 211   3                              {
+ 212   4                                      S5_key=0;
+ 213   4                                      v1=200;
+ 214   4                              }
+ 215   3                      }
+ 216   2                      while(S5==0)
+ 217   2                      {
+ 218   3                              show_SMG();
+ 219   3                              show_LED();
+ 220   3                      }
+ 221   2              }
+ 222   1              if(S4==0)
+ 223   1              {
+ 224   2                      delaySMG(100);
+ 225   2                      if(S4==0)
+ 226   2                      {
+ 227   3                              if(SMG_mode==0)
+ 228   3                              {
+ 229   4                                      SMG_mode=1;
+ 230   4                                      LED_mode=1;
+ 231   4                              }
+ 232   3                              else
+ 233   3                              {
+ 234   4                                      SMG_mode=0;
+ 235   4                                      LED_mode=0;
+ 236   4                              }
+ 237   3                      }
+ 238   2                      while(S4==0)
+ 239   2                      {
+ 240   3                              show_SMG();
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 5   
+
+ 241   3                              show_LED();
+ 242   3                      }
+ 243   2              }
+ 244   1      }
+ 245          void show_LED()
+ 246          {
+ 247   1              if(S6_key==0)
+ 248   1              {
+ 249   2                      if(LED_mode==0)//电压显示状态
+ 250   2                      {
+ 251   3                              SelectHC(4);
+ 252   3                              P0=0xfe;//L1点亮，L2熄灭
+ 253   3                              if(S5_key==1)//用Rb2测量的电压，则L5点亮；
+ 254   3                              {
+ 255   4                                      P0=P0&0xef;
+ 256   4                                      if((v1>=150&&v1<250)||(v1>=350))//L3点亮
+ 257   4                                      {
+ 258   5                                              P0=P0&0xfb;
+ 259   5                                      }
+ 260   4                                      else//L3熄灭
+ 261   4                                      {
+ 262   5                                              P0=P0|0x04;
+ 263   5                                      }
+ 264   4                              }
+ 265   3                              else//L3和L5熄灭
+ 266   3                              {
+ 267   4                                      P0=P0|0x14;
+ 268   4                              }
+ 269   3                              
+ 270   3                      }
+ 271   2                      else//频率显示状态
+ 272   2                      {
+ 273   3                              SelectHC(4);
+ 274   3                              P0=0xfd;//L2点亮，L1熄灭
+ 275   3                              if((dat_f>=1000&&dat_f<5000)||(dat_f>=10000))//L4点亮
+ 276   3                              {
+ 277   4                                      P0=P0&0xf7;
+ 278   4                              }
+ 279   3                              else//熄灭L4，只点亮L2
+ 280   3                              {
+ 281   4                                      P0=0xfd;
+ 282   4                              }
+ 283   3                      }
+ 284   2              }
+ 285   1              else
+ 286   1              {
+ 287   2                      SelectHC(4);
+ 288   2                      P0=0xff;
+ 289   2              }
+ 290   1      }
+ 291          
+ 292          void InitTimer()
+ 293          {
+ 294   1              TMOD = 0x16;                    //高4为控制定时器1，表示16位非自动重装载；低4位控制定时器0，表示8位自动重
+             -装载
+ 295   1          TL1 =(65535-50000+1)%256;   //初始化计时值
+ 296   1          TH1 = (65535-50000+1)/256;
+ 297   1              TL0=0xff;
+ 298   1              TH0=0xff;
+ 299   1              
+ 300   1              TR0=1;
+ 301   1              ET0=1;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/02/2024 13:21:58 PAGE 6   
+
+ 302   1          TR1 = 1;                        //定时器1开始计时
+ 303   1          ET1 = 1;                        //使能定时器1中断
+ 304   1          EA = 1;
+ 305   1      }
+ 306          
+ 307          void ServiceTimer0() interrupt 1
+ 308          {
+ 309   1              count_f++;
+ 310   1      }
+ 311          
+ 312          void ServiceTimer1() interrupt 3//50ms
+ 313          {
+ 314   1              TL1 =(65535-50000+1)%256;       //初始化计时值
+ 315   1              TH1 = (65535-50000+1)/256;
+ 316   1              count_t++;
+ 317   1              if(count_t==20)
+ 318   1              {
+ 319   2                      dat_f=count_f;
+ 320   2                      count_f=0;
+ 321   2                      count_t=0;
+ 322   2              }
+ 323   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    857    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     14    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

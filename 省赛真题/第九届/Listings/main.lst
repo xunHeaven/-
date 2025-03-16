@@ -1,0 +1,540 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include "iic.h"
+   3          #include <intrins.h>
+   4          sbit S4=P3^3;
+   5          sbit S5=P3^2;
+   6          sbit S6=P3^1;
+   7          sbit S7=P3^0;
+   8          
+   9          unsigned char Led_mode=1;//Led灯闪烁模式1-4，工作模式
+  10          unsigned char SMG_mode=1;//数码管显示模式1-3
+  11          unsigned char Led_lumi=1;//亮度等级，1-4,由滑动变阻器控制
+  12          unsigned char pwm_duty=10;//pwm亮度控制
+  13          unsigned char countShine=0;//定时器1计时
+  14          unsigned char LedPwm=1;
+  15          unsigned char LEDCount=0;
+  16          unsigned char jiange=4;//LED工作模式流转间隔4-12，保存到AT24C02
+  17          unsigned char S7_key=1;//S7按下判断，如果按了S7，LED灯暂停或启动，1是启动
+  18          unsigned char getPCF=0;//读取PCF中AIN3的电压值保存
+  19          unsigned char count_100ms=0;//100毫秒计数
+  20          unsigned char S4_key=0;//数码管全灭状态下，是否按下S4
+  21          unsigned char is_800ms=0;//0.8s亮灭间隔判断标记
+  22          unsigned int code SMG_number[]=
+  23                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,
+  24               0x80,0x90,0x88,0x83,0xc6,0xc0,0x86,0x8e,
+  25                  0xbf,0x7f};
+  26          unsigned char code SMG_Dot[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10};
+  27          unsigned char code LED_mode1[]={0xfe,0xfd,0xfb,0xf7,0xef,0xdf,0xbf,0x7f};//LED灯模式一亮灯数组
+  28          unsigned char code LED_mode2[]={0x7f,0xbf,0xdf,0xef,0xf7,0xfb,0xfd,0xfe};
+  29          unsigned char code LED_mode3[]={0x7e,0xbd,0xdb,0xe7};
+  30          unsigned char code LED_mode4[]={0xe7,0xdb,0xbd,0x7e};
+  31          void LED_show(unsigned char i,unsigned char mode);//LED显示函数
+  32          void SelectHC(unsigned char channel)
+  33          {
+  34   1              switch(channel)
+  35   1              {
+  36   2                      case 4:
+  37   2                              P2=(P2&0x1f)|0x80;
+  38   2                              break;
+  39   2                      case 5:
+  40   2                              P2=(P2&0x1f)|0xa0;
+  41   2                              break;
+  42   2                      case 6:
+  43   2                              P2=(P2&0x1f)|0xc0;
+  44   2                              break;
+  45   2                      case 7:
+  46   2                              P2=(P2&0x1f)|0xe0;
+  47   2                              break;
+  48   2              }
+  49   1      }
+  50          void InitSys()
+  51          {
+  52   1              SelectHC(4);
+  53   1              P0=0xff;//关掉LED
+  54   1              
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 2   
+
+  55   1              
+  56   1              SelectHC(5);
+  57   1              P0=P0&0xaf;//关掉蜂鸣器继电器
+  58   1              
+  59   1              SelectHC(6);
+  60   1              P0=0xff;
+  61   1              SelectHC(7);
+  62   1              P0=0xff;//关掉数码管
+  63   1      }
+  64          void display_SMG(unsigned char pos,unsigned char value)
+  65          {
+  66   1              SelectHC(7);
+  67   1              P0=0xff;
+  68   1              SelectHC(6);
+  69   1              P0=0x01<<pos;
+  70   1              SelectHC(7);
+  71   1              P0=value;
+  72   1      }
+  73          
+  74          void all_SMG()//使显示时数码管亮度相同
+  75          {
+  76   1              SelectHC(7);
+  77   1              P0=0xff;
+  78   1              SelectHC(6);
+  79   1              P0=0xff;
+  80   1              SelectHC(7);
+  81   1              P0=0xff;
+  82   1      }
+  83          void display_LED(unsigned pos)//led灯亮灭控制
+  84          {
+  85   1              P0=0xff;
+  86   1              SelectHC(4);
+  87   1              P0=pos;
+  88   1      }
+  89          void delaySMG(unsigned int t)
+  90          {
+  91   1              while(t--);
+  92   1      }
+  93          
+  94          void SMG_show(unsigned char mode)//数码管显示内容
+  95          {
+  96   1              switch(mode)
+  97   1              {
+  98   2                      case 1:
+  99   2                              if(S4_key==0)
+ 100   2                              {       
+ 101   3                                      all_SMG();
+ 102   3                              }
+ 103   2                              else
+ 104   2                              {
+ 105   3                                      display_SMG(6,SMG_number[16]);
+ 106   3                                      delaySMG(100);
+ 107   3                                      display_SMG(7,SMG_number[Led_lumi]);
+ 108   3                                      delaySMG(100);
+ 109   3                                      all_SMG();
+ 110   3                                      delaySMG(100);
+ 111   3                              }
+ 112   2                              break;
+ 113   2                      case 2:   //设置Led显示的模式
+ 114   2                              if(is_800ms)//如果is_800ms=1，则显示模式的数码管当前处于点亮
+ 115   2                              {
+ 116   3                                      display_SMG(0,SMG_number[16]);
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 3   
+
+ 117   3                                      delaySMG(100);
+ 118   3                                      display_SMG(1,SMG_number[Led_mode]);
+ 119   3                                      delaySMG(100);
+ 120   3                                      display_SMG(2,SMG_number[16]);
+ 121   3                                      delaySMG(100);
+ 122   3                                      delaySMG(100);
+ 123   3                              }
+ 124   2                              else//如果is_800ms=0，则显示模式的数码管当前处于熄灭
+ 125   2                              {
+ 126   3                                      display_SMG(0,0xff);
+ 127   3                                      delaySMG(100);
+ 128   3                                      display_SMG(1,0xff);
+ 129   3                                      delaySMG(100);
+ 130   3                                      display_SMG(2,0xff);
+ 131   3                                      delaySMG(100);
+ 132   3                                      delaySMG(100);
+ 133   3                              }
+ 134   2                              if(jiange>=10)//如果流转时间大于1000ms
+ 135   2                              {
+ 136   3                                      display_SMG(4,SMG_number[jiange/10]);
+ 137   3                                      delaySMG(100);
+ 138   3                                      display_SMG(5,SMG_number[jiange%10]);
+ 139   3                                      delaySMG(100);
+ 140   3                                      display_SMG(6,SMG_number[0]);
+ 141   3                                      delaySMG(100);
+ 142   3                                      display_SMG(7,SMG_number[0]);
+ 143   3                                      delaySMG(100);
+ 144   3                                      all_SMG();
+ 145   3                                      delaySMG(100);
+ 146   3                              }
+ 147   2                              else
+ 148   2                              {
+ 149   3                                      display_SMG(5,SMG_number[jiange%10]);
+ 150   3                                      delaySMG(100);
+ 151   3                                      display_SMG(6,SMG_number[0]);
+ 152   3                                      delaySMG(100);
+ 153   3                                      display_SMG(7,SMG_number[0]);
+ 154   3                                      delaySMG(100);
+ 155   3                                      all_SMG();
+ 156   3                                      delaySMG(100);
+ 157   3                              }
+ 158   2                              break;
+ 159   2                              
+ 160   2                      case 3://设置led流转时间的模式
+ 161   2                              display_SMG(0,SMG_number[16]);
+ 162   2                              delaySMG(100);
+ 163   2                              display_SMG(1,SMG_number[Led_mode]);
+ 164   2                              delaySMG(100);
+ 165   2                              display_SMG(2,SMG_number[16]);
+ 166   2                              delaySMG(100);
+ 167   2                              if(is_800ms)
+ 168   2                              {
+ 169   3                                      if(jiange>=10)//如果流转时间大于1000ms
+ 170   3                                      {
+ 171   4                                              display_SMG(4,SMG_number[jiange/10]);
+ 172   4                                              delaySMG(100);
+ 173   4                                              display_SMG(5,SMG_number[jiange%10]);
+ 174   4                                              delaySMG(100);
+ 175   4                                              display_SMG(6,SMG_number[0]);
+ 176   4                                              delaySMG(100);
+ 177   4                                              display_SMG(7,SMG_number[0]);
+ 178   4                                              delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 4   
+
+ 179   4                                              all_SMG();
+ 180   4                                              delaySMG(100);
+ 181   4                                      }
+ 182   3                                      else
+ 183   3                                      {
+ 184   4                                              display_SMG(5,SMG_number[jiange%10]);
+ 185   4                                              delaySMG(100);
+ 186   4                                              display_SMG(6,SMG_number[0]);
+ 187   4                                              delaySMG(100);
+ 188   4                                              display_SMG(7,SMG_number[0]);
+ 189   4                                              delaySMG(100);
+ 190   4                                              all_SMG();
+ 191   4                                              delaySMG(100);
+ 192   4                                      }
+ 193   3                              }
+ 194   2                              else
+ 195   2                              {
+ 196   3                                      display_SMG(4,0xff);
+ 197   3                                      delaySMG(100);
+ 198   3                                      display_SMG(5,0xff);
+ 199   3                                      delaySMG(100);
+ 200   3                                      display_SMG(6,0xff);
+ 201   3                                      delaySMG(100);
+ 202   3                                      display_SMG(7,0xff);
+ 203   3                                      delaySMG(100);
+ 204   3                                      all_SMG();
+ 205   3                                      delaySMG(100);
+ 206   3                              }
+ 207   2                              
+ 208   2                              break;
+ 209   2              }
+ 210   1      }
+ 211          void keyCtrl()//按键操作
+ 212          {
+ 213   1              if(S4==0)
+ 214   1              {
+ 215   2                      delaySMG(100);
+ 216   2                      if(S4==0)
+ 217   2                      {
+ 218   3                              if(SMG_mode==1)//如果是数码管的模式1，则按下后数码管显示led亮度模式
+ 219   3                              {
+ 220   4                                      S4_key=1;
+ 221   4                              }
+ 222   3                              else if(SMG_mode==2)//如果是数码管模式2，可以对LED显示模式进行设置
+ 223   3                              {
+ 224   4                                      if(Led_mode==1)
+ 225   4                                      {
+ 226   5                                              Led_mode=4;
+ 227   5                                      }
+ 228   4                                      else
+ 229   4                                      {
+ 230   5                                              Led_mode--;
+ 231   5                                      }
+ 232   4                              }
+ 233   3                              else//如果是数码管模式3，则对LED模式流转时间进行设置
+ 234   3                              {
+ 235   4                                      if(jiange==4)
+ 236   4                                      {
+ 237   5                                              jiange=12;
+ 238   5                                      }
+ 239   4                                      else
+ 240   4                                      {
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 5   
+
+ 241   5                                              jiange--;
+ 242   5                                      }
+ 243   4                              }
+ 244   3                      }
+ 245   2                      while(S4==0)
+ 246   2                      {
+ 247   3                              SMG_show(SMG_mode);
+ 248   3                              LED_show(0,Led_mode);
+ 249   3                      }
+ 250   2                      S4_key=0;
+ 251   2              }
+ 252   1              
+ 253   1              if(S5==0)//按下S5，在设置数码管设置界面进行加操作
+ 254   1              {
+ 255   2                      delaySMG(100);
+ 256   2                      if(S5==0)
+ 257   2                      {
+ 258   3                              if(SMG_mode==2)
+ 259   3                              {
+ 260   4                                      if(Led_mode==4)
+ 261   4                                      {
+ 262   5                                              Led_mode=1;
+ 263   5                                      }
+ 264   4                                      else
+ 265   4                                      {
+ 266   5                                              Led_mode++;
+ 267   5                                      }
+ 268   4                              }
+ 269   3                              else if(SMG_mode==3)
+ 270   3                              {
+ 271   4                                      if(jiange==12)
+ 272   4                                      {
+ 273   5                                              jiange=4;
+ 274   5                                      }
+ 275   4                                      else
+ 276   4                                      {
+ 277   5                                              jiange++;
+ 278   5                                      }
+ 279   4                              }
+ 280   3                      }
+ 281   2                      while(S5==0)
+ 282   2                      {
+ 283   3                              SMG_show(SMG_mode);
+ 284   3                              LED_show(0,Led_mode);
+ 285   3                      }
+ 286   2              }
+ 287   1              
+ 288   1              if(S6==0)//按下S6，数码管模式改变
+ 289   1              {
+ 290   2                      delaySMG(100);
+ 291   2                      if(S6==0)
+ 292   2                      {
+ 293   3                              if(SMG_mode==3)
+ 294   3                              {
+ 295   4                                      write_AT(0,jiange);//将Led模式流转时间间隔存入eeprom
+ 296   4                                      SMG_mode=1;
+ 297   4                              }
+ 298   3                              else
+ 299   3                              {
+ 300   4                                      SMG_mode++;
+ 301   4                              }
+ 302   3                      }
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 6   
+
+ 303   2                      while(S6==0)
+ 304   2                      {
+ 305   3                              SMG_show(SMG_mode);
+ 306   3                              LED_show(0,Led_mode);
+ 307   3                      }
+ 308   2              }
+ 309   1              if(S7==0)//按下S7后Led暂停或启动
+ 310   1              {
+ 311   2                      delaySMG(100);
+ 312   2                      if(S7==0)
+ 313   2                      {
+ 314   3                              if(S7_key==0)
+ 315   3                              {
+ 316   4                                      S7_key=1;
+ 317   4                              }
+ 318   3                              else
+ 319   3                              {
+ 320   4                                      S7_key=0;
+ 321   4                              }
+ 322   3                      }
+ 323   2                      while(S7==0)
+ 324   2                      {
+ 325   3                              //SMG_show(SMG_mode);
+ 326   3                              LED_show(0,Led_mode);
+ 327   3                      }
+ 328   2              }
+ 329   1      }
+ 330          
+ 331          
+ 332          
+ 333          void getLumi()//led灯亮度等级判断
+ 334          {
+ 335   1              getPCF=Read_PCF(0x03);//读取滑动变阻器的分压0-255
+ 336   1              if(getPCF<64)
+ 337   1              {
+ 338   2                      Led_lumi=1;
+ 339   2              }
+ 340   1              else if(getPCF<128)
+ 341   1              {
+ 342   2                      Led_lumi=2;
+ 343   2              }
+ 344   1              else if(getPCF<192)
+ 345   1              {
+ 346   2                      Led_lumi=3;
+ 347   2              }
+ 348   1              else
+ 349   1              {
+ 350   2                      Led_lumi=4;
+ 351   2              }
+ 352   1              
+ 353   1      }
+ 354          unsigned char P0L,P0H;//Led灯低4位和高4位
+ 355          void LED_show(unsigned char i,unsigned char mode)//LED显示函数
+ 356          {
+ 357   1              SelectHC(4);
+ 358   1              P0=0xff;
+ 359   1              if(LedPwm==0)
+ 360   1              {
+ 361   2                      if(mode==1)
+ 362   2              {
+ 363   3                      SelectHC(4);
+ 364   3                      P0=LED_mode1[LEDCount%8];
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 7   
+
+ 365   3                      
+ 366   3              }
+ 367   2              else if(mode==2)
+ 368   2              {
+ 369   3                      SelectHC(4);
+ 370   3                      P0=LED_mode2[LEDCount%8];
+ 371   3              }
+ 372   2              else if(mode==3)
+ 373   2              {
+ 374   3                      SelectHC(4);
+ 375   3                      P0=LED_mode3[LEDCount%4];
+ 376   3              }
+ 377   2              else if(mode==4)
+ 378   2              {
+ 379   3                      SelectHC(4);
+ 380   3                      P0=LED_mode4[LEDCount%4];
+ 381   3              }
+ 382   2              }
+ 383   1              else
+ 384   1              {
+ 385   2                      SelectHC(4);
+ 386   2                      P0=0xff;
+ 387   2              }
+ 388   1              
+ 389   1      }
+*** WARNING C280 IN LINE 355 OF main.c: 'i': unreferenced local variable
+ 390          void InitTimer0()//10ms定时器
+ 391          {
+ 392   1              TMOD = 0x01;                    //设置定时器为模式0(16位非重装载)
+ 393   1          TL0 = (65535-10000)%256;                     //初始化计时值
+ 394   1          TH0 = (65535-10000)/256;
+ 395   1          TR0 = 1;                        //定时器0开始计时
+ 396   1          ET0 = 1;                        //使能定时器0中断
+ 397   1          EA = 1;
+ 398   1      }
+ 399          
+ 400          void InitTimer1()
+ 401          {
+ 402   1              TMOD = 0x10;                    //设置定时器为模式0(16位自动重装载)
+ 403   1          TL1 = (65535-100)%256;                     //初始化计时值
+ 404   1          TH1 = (65535-100)/256; 
+ 405   1          TR1 = 1;                        //定时器1开始计时
+ 406   1          ET1 = 1;                        //使能定时器0中断
+ 407   1          EA = 1;
+ 408   1      }
+ 409          
+ 410          void ServiceTimer1() interrupt 3
+ 411          {
+ 412   1              TL1 = (65535-100)%256;                     //初始化计时值
+ 413   1          TH1 = (65535-100)/256; 
+ 414   1              countShine++;
+ 415   1              if(countShine==pwm_duty*Led_lumi)
+ 416   1              {
+ 417   2                      LedPwm=1;//高电平
+ 418   2              }
+ 419   1              else if(countShine==100)
+ 420   1              {
+ 421   2                      LedPwm=0;//低电平
+ 422   2                      countShine=0;
+ 423   2              }
+ 424   1              
+ 425   1              
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 8   
+
+ 426   1              
+ 427   1      }
+ 428          
+ 429          unsigned int TimeFor800ms=0;//数码管闪烁800ms计时
+ 430          unsigned int TimeForLed=0;//Led模式流转计时
+ 431          unsigned char jishi=0;
+ 432          void ServiceTimer0() interrupt 1
+ 433          {
+ 434   1              TL0 = (65535-10000)%256;                     //初始化计时值
+ 435   1          TH0 = (65535-10000)/256;
+ 436   1              TimeFor800ms++;
+ 437   1              if(S7_key==1)//当S7_key=0时LED流转计时暂停
+ 438   1              {
+ 439   2                      TimeForLed++;
+ 440   2                      jishi++;
+ 441   2              }
+ 442   1              if(jishi==8)//led闪烁
+ 443   1              {
+ 444   2                      LEDCount++;
+ 445   2                      jishi=0;
+ 446   2              }
+ 447   1              if(LEDCount==8)
+ 448   1              {
+ 449   2                      LEDCount==0;
+*** WARNING C275 IN LINE 449 OF main.c: expression with possibly no effect
+ 450   2              }
+ 451   1              
+ 452   1              if(TimeFor800ms==80)//数码管闪烁800ms判断
+ 453   1              {
+ 454   2                      if(is_800ms==0)
+ 455   2                      {
+ 456   3                              is_800ms=1;
+ 457   3                      }
+ 458   2                      else
+ 459   2                      {
+ 460   3                              is_800ms=0;
+ 461   3                      }
+ 462   2                      TimeFor800ms=0;
+ 463   2              }
+ 464   1              if((TimeForLed/10)/jiange==1)//定时器到达流转时间就进行Led模式转换
+ 465   1              {
+ 466   2                      TimeForLed=0;
+ 467   2                      if(Led_mode==4)
+ 468   2                      {
+ 469   3                              Led_mode=1;
+ 470   3                      }
+ 471   2                      else
+ 472   2                      {
+ 473   3                              Led_mode++;
+ 474   3                      }
+ 475   2                      LEDCount=0;
+ 476   2                      
+ 477   2              }
+ 478   1              //SMG_show(SMG_mode);
+ 479   1      }
+ 480          
+ 481          
+ 482          void main()
+ 483          {
+ 484   1              InitSys();
+ 485   1              jiange=read_AT(0);
+ 486   1              InitTimer0();
+C51 COMPILER V9.56.0.0   MAIN                                                              03/30/2024 23:07:19 PAGE 9   
+
+ 487   1              InitTimer1();
+ 488   1              //jiange=12;
+ 489   1              while(1)
+ 490   1              {
+ 491   2                      getLumi();//LED亮度等级
+ 492   2                      keyCtrl();//按键操作
+ 493   2                      SMG_show(SMG_mode);//数码管内容显示；
+ 494   2                      LED_show(0,Led_mode);//LED灯内容显示
+ 495   2                      
+ 496   2                      
+ 497   2              }
+ 498   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1060    ----
+   CONSTANT SIZE    =     70    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     20       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  2 WARNING(S),  0 ERROR(S)

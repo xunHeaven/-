@@ -1,0 +1,4 @@
+".\Objects\STARTUP.obj",
+".\Objects\csb.obj" 
+TO ".\Objects\³¬Éù²¨test" 
+PRINT(".\Listings\³¬Éù²¨test.m51") RAMSIZE(256) 

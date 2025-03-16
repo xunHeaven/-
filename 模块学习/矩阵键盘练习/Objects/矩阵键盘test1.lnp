@@ -1,0 +1,4 @@
+".\Objects\STARTUP.obj",
+".\Objects\MatridKey.obj" 
+TO ".\Objects\¾ØÕó¼üÅÌtest1" 
+PRINT(".\Listings\¾ØÕó¼üÅÌtest1.m51") RAMSIZE(256) 

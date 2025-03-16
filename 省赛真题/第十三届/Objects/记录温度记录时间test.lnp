@@ -1,0 +1,6 @@
+".\Objects\STARTUP.obj",
+".\Objects\ds1302.obj",
+".\Objects\main.obj",
+".\Objects\onewire.obj" 
+TO ".\Objects\记录温度记录时间test" 
+PRINT(".\Listings\记录温度记录时间test.m51") RAMSIZE(256) 

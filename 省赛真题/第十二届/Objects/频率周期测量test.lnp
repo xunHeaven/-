@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\iic.obj",
+".\Objects\main.obj" 
+TO ".\Objects\频率周期测量test" 
+PRINT(".\Listings\频率周期测量test.m51") RAMSIZE(256) 

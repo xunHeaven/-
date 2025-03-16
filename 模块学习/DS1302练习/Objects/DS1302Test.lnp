@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\DS1302Test1.obj",
+".\Objects\ds1302.obj" 
+TO ".\Objects\DS1302Test" 
+PRINT(".\Listings\DS1302Test.m51") RAMSIZE(256) 

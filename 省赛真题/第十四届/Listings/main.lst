@@ -1,0 +1,584 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include <iic.h>
+   3          #include <ds1302.h>
+   4          #include <onewire.h>
+   5          #include <intrins.h>
+   6          sbit R1=P3^3;
+   7          sbit R2=P3^2;
+   8          sbit C1=P4^4;
+   9          sbit C2=P4^2;
+  10          sbit L1=P0^0;
+  11          sbit L2=P0^1;
+  12          sbit L3=P0^2;
+  13          sbit L4=P0^3;
+  14          sbit L5=P0^4;
+  15          sbit L6=P0^5;
+  16          unsigned int S9_t=0;//S8长按标记
+  17          unsigned char code SMG_number[]=
+  18                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0x88,0x80,0xc6,
+  19                  0xc0,0x86,0x8e,0xbf,0x7f};//数码管段码，0-f和-.
+  20          unsigned char code SMG_Dotnumber[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10}; 
+  21          //U-0xc1
+  22          unsigned int count_t=0;//计时
+  23          unsigned int count_f=0;//频率计数
+  24          unsigned int dat_f=0;//频率记录
+  25          unsigned int S9_count=0;
+  26          unsigned char temp_arr[20]={0};//保存的温度数组
+  27          unsigned char maxTemp=0;//数组中的最大温度
+  28          unsigned int aveTemp=0;//平均温度
+  29          unsigned char giveTemp=30;//给定的温度参数
+  30          
+  31          unsigned int shidu_arr[20]={0};//保存的湿度数组
+  32          unsigned int maxShidu=0;//平均湿度
+  33          unsigned int aveShidu=0;//最大湿度
+  34          
+  35          unsigned char hour=0;//记录最近一次采集的时间（时）
+  36          unsigned char minute=0;//记录最近采集的时间（分）
+  37          
+  38          
+  39          unsigned char SMG_mode=1;//数码管模式
+  40          unsigned char huixian=1;//回显模式
+  41          unsigned char caiji=0;//采集次数
+  42          unsigned char v1;//光敏电阻采集到的分压
+  43          unsigned char v1_change=0;//从亮变暗标记
+  44          unsigned char v1_t=0;//亮变暗计时
+  45          unsigned char v1_liang=1;//暗变亮标记
+  46          
+  47          unsigned char L4_key=0;
+  48          void Initsys();
+  49          void SelectHC(unsigned char channel);
+  50          void displaySMG(unsigned char pos,unsigned char value);
+  51          void delaySMG(unsigned int t);
+  52          void offSMG();
+  53          void getCaiji();
+  54          void showSMG();
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 2   
+
+  55          void showLED();
+  56          void scanKey();
+  57          void InitTimer();
+  58          void getMaxAve();//计算温度和湿度数组的最大值和平均值
+  59          
+  60          void main()
+  61          {
+  62   1              Initsys();
+  63   1              InitTimer();
+  64   1              write_date();
+  65   1              temp_arr[0]=read_Temp();
+  66   1              temp_arr[0]=0;
+  67   1              while(1)
+  68   1              {
+  69   2                      v1=read_PCF(0x01);//读取光敏电阻v1电压
+  70   2                      read_date();//读取时间，并将数据赋给Timer[]
+  71   2                      getCaiji();
+  72   2                      getMaxAve();
+  73   2                      scanKey();
+  74   2                      showSMG();
+  75   2                      showLED();
+  76   2                      
+  77   2              }
+  78   1      }
+  79          
+  80          void InitTimer()
+  81          {
+  82   1              TMOD = 0x16;  //设置定时器为模式0(16位自动重装载)
+  83   1      
+  84   1              TL0=0xff;
+  85   1              TH0=0xff;
+  86   1          TL1 = (65535-50000+1)%256;                     //初始化计时值
+  87   1          TH1 = (65535-50000+1)/256;
+  88   1              
+  89   1              TR0=1;
+  90   1              ET0=1;
+  91   1          TR1 = 1;                        //定时器1开始计时
+  92   1          ET1 = 1;                        //使能定时器0中断
+  93   1          EA = 1;
+  94   1      }
+  95          void ServiceTimer0() interrupt 1
+  96          {
+  97   1              count_f++;
+  98   1      }
+  99          void ServiceTimer1() interrupt 3
+ 100          {
+ 101   1              TL1 = (65535-50000+1)%256;                     //初始化计时值
+ 102   1          TH1 = (65535-50000+1)/256;
+ 103   1              count_t++;
+ 104   1              if(count_t==20)//1S
+ 105   1              {
+ 106   2                      dat_f=count_f;
+ 107   2                      count_t=0;
+ 108   2                      count_f=0;
+ 109   2              }
+ 110   1              if(S9_t==1)
+ 111   1              {
+ 112   2                      S9_count++;
+ 113   2                      if(S9_count==40)//2s
+ 114   2                      {
+ 115   3                              caiji=0;
+ 116   3                              S9_t=0;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 3   
+
+ 117   3                              S9_count=0;
+ 118   3                      }
+ 119   2              }
+ 120   1              if(v1_change==1)
+ 121   1              {
+ 122   2                      v1_t++;
+ 123   2                      if(v1_t==60)//3s
+ 124   2                      {
+ 125   3                              v1_change=0;
+ 126   3                              v1_t=0;
+ 127   3                      }
+ 128   2              }
+ 129   1              if(count_t%2==0)
+ 130   1              {
+ 131   2                      if(L4_key==0)
+ 132   2                      {
+ 133   3                              L4_key=1;
+ 134   3                      }
+ 135   2                      else
+ 136   2                      {
+ 137   3                              L4_key=0;
+ 138   3                      }
+ 139   2              }
+ 140   1              
+ 141   1      }
+ 142          
+ 143          void getCaiji()
+ 144          {
+ 145   1              if(v1_change==0)
+ 146   1              {
+ 147   2                      if((v1<=50)&&(v1_liang==1))
+ 148   2                      {
+ 149   3                              delaySMG(100);
+ 150   3                              if((v1<=50)&&v1_liang==1)
+ 151   3                              {
+ 152   4                                      v1_change=1;
+ 153   4                                      v1_liang=0;
+ 154   4                                      caiji++;
+ 155   4                                      if((dat_f>=200)&&(dat_f<=2000))
+ 156   4                                      {
+ 157   5                                              shidu_arr[caiji-1]=(2*(dat_f/45))+10-(80/9);
+ 158   5                                      }
+ 159   4                                      temp_arr[caiji-1]=read_Temp();
+ 160   4                                      hour=Timer[2];
+ 161   4                                      minute=Timer[1];
+ 162   4                              }
+ 163   3      
+ 164   3                      }
+ 165   2              }
+ 166   1              if((v1_change==0)&&(v1>50))
+ 167   1              {
+ 168   2                      v1_liang=1;
+ 169   2              }
+ 170   1      
+ 171   1      }
+ 172          void getMaxAve()
+ 173          {
+ 174   1              unsigned char n;
+ 175   1              maxTemp=0;
+ 176   1              maxShidu=0;
+ 177   1              aveTemp=0;
+ 178   1              aveShidu=0;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 4   
+
+ 179   1              for(n=0;n<caiji;n++)
+ 180   1              {
+ 181   2                      aveTemp+=temp_arr[n];
+ 182   2                      aveShidu+=shidu_arr[n];
+ 183   2                      if(maxTemp<temp_arr[n])
+ 184   2                      {
+ 185   3                              maxTemp=temp_arr[n];
+ 186   3                      }
+ 187   2                      if(maxShidu<shidu_arr[n])
+ 188   2                      {
+ 189   3                              maxShidu=shidu_arr[n];
+ 190   3                      }
+ 191   2      
+ 192   2              }
+ 193   1              if(caiji!=0)
+ 194   1              {
+ 195   2                      aveTemp=(aveTemp*10)/caiji;
+ 196   2                      aveShidu=(aveShidu*10)/caiji;
+ 197   2              }
+ 198   1              else
+ 199   1              {
+ 200   2                      aveTemp=(aveTemp*10);
+ 201   2                      aveShidu=(aveShidu*10);
+ 202   2              }
+ 203   1      
+ 204   1      }
+ 205          void SelectHC(unsigned char channel)
+ 206          {
+ 207   1              switch(channel)
+ 208   1              {
+ 209   2                      case 4:
+ 210   2                              P2=(P2&0x1f)|0x80;
+ 211   2                              break;
+ 212   2                      case 5:
+ 213   2                              P2=(P2&0x1f)|0xa0;
+ 214   2                              break;
+ 215   2                      case 6:
+ 216   2                              P2=(P2&0x1f)|0xc0;
+ 217   2                              break;
+ 218   2                      case 7:
+ 219   2                              P2=(P2&0x1f)|0xe0;
+ 220   2                              break;
+ 221   2              }
+ 222   1      }
+ 223          void Initsys()
+ 224          {
+ 225   1              SelectHC(5);
+ 226   1              P0=0xaf;
+ 227   1              SelectHC(4);
+ 228   1              P0=0xff;
+ 229   1      }
+ 230          void offSMG()
+ 231          {
+ 232   1              SelectHC(6);
+ 233   1              P0=0x00;
+ 234   1              SelectHC(7);
+ 235   1              P0=0xff;
+ 236   1      }
+ 237          void displaySMG(unsigned char pos,unsigned char value)
+ 238          {
+ 239   1              SelectHC(6);
+ 240   1              P0=0x01<<pos;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 5   
+
+ 241   1              SelectHC(7);
+ 242   1              P0=value;
+ 243   1      }
+ 244          void delaySMG(unsigned int t)
+ 245          {
+ 246   1              while(t--);
+ 247   1      }
+ 248          void showSMG()
+ 249          {
+ 250   1              if(v1_change==1)//光线由亮变暗，则显示温度湿度界面
+ 251   1              {
+ 252   2                      displaySMG(0,0x86);//显示E
+ 253   2                      delaySMG(100);
+ 254   2                      displaySMG(3,SMG_number[temp_arr[caiji-1]/10]);//显示E
+ 255   2                      delaySMG(100);
+ 256   2                      displaySMG(4,SMG_number[temp_arr[caiji-1]%10]);//显示E
+ 257   2                      delaySMG(100);
+ 258   2                      
+ 259   2                      displaySMG(5,SMG_number[16]);//显示E
+ 260   2                      delaySMG(100);
+ 261   2                      if(shidu_arr[caiji-1]==0)
+ 262   2                      {
+ 263   3                              displaySMG(6,SMG_number[10]);//显示A
+ 264   3                              delaySMG(100);
+ 265   3                              displaySMG(7,SMG_number[10]);//显示A
+ 266   3                              delaySMG(100);
+ 267   3                      }
+ 268   2                      else
+ 269   2                      {
+ 270   3                              displaySMG(6,SMG_number[shidu_arr[caiji-1]/10]);
+ 271   3                              delaySMG(100);
+ 272   3                              displaySMG(7,SMG_number[shidu_arr[caiji-1]%10]);
+ 273   3                              delaySMG(100);
+ 274   3                      }
+ 275   2                      offSMG();
+ 276   2              }
+ 277   1              else
+ 278   1              {
+ 279   2                      if(SMG_mode==1)//模式1，显示时间，时-分-秒
+ 280   2                      {
+ 281   3                              displaySMG(0,SMG_number[Timer[2]/16]);
+ 282   3                              delaySMG(100);
+ 283   3                              displaySMG(1,SMG_number[Timer[2]%16]);
+ 284   3                              delaySMG(100);
+ 285   3                              
+ 286   3                              displaySMG(2,SMG_number[16]);
+ 287   3                              delaySMG(100);
+ 288   3              
+ 289   3                              displaySMG(3,SMG_number[Timer[1]/16]);
+ 290   3                              delaySMG(100);
+ 291   3                              displaySMG(4,SMG_number[Timer[1]%16]);
+ 292   3                              delaySMG(100);
+ 293   3                              
+ 294   3                              displaySMG(5,SMG_number[16]);
+ 295   3                              delaySMG(100);
+ 296   3                              
+ 297   3                              displaySMG(6,SMG_number[Timer[0]/16]);
+ 298   3                              delaySMG(100);
+ 299   3                              displaySMG(7,SMG_number[Timer[0]%16]);
+ 300   3                              delaySMG(100);
+ 301   3                              offSMG();
+ 302   3                      }
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 6   
+
+ 303   2                      else if(SMG_mode==2)//模式2，回显模式
+ 304   2                      {
+ 305   3                              if(huixian==1)//回显模式1，温度回显
+ 306   3                              {
+ 307   4                                      displaySMG(0,SMG_number[12]);
+ 308   4                                      delaySMG(100);
+ 309   4                                      
+ 310   4                                      displaySMG(2,SMG_number[maxTemp/10]);
+ 311   4                                      delaySMG(100);
+ 312   4                                      displaySMG(3,SMG_number[maxTemp%10]);
+ 313   4                                      delaySMG(100);
+ 314   4                                      
+ 315   4                                      displaySMG(4,SMG_number[16]);
+ 316   4                                      delaySMG(100);
+ 317   4                                      
+ 318   4                                      displaySMG(5,SMG_number[aveTemp/100]);
+ 319   4                                      delaySMG(100);
+ 320   4                                      displaySMG(6,SMG_Dotnumber[(aveTemp%100)/10]);
+ 321   4                                      delaySMG(100);
+ 322   4                                      displaySMG(7,SMG_number[aveTemp%10]);
+ 323   4                                      delaySMG(100);
+ 324   4                                      offSMG();
+ 325   4                              }
+ 326   3                              else if(huixian==2)//回显模式2，湿度
+ 327   3                              {
+ 328   4                                      displaySMG(0,0x89);//H
+ 329   4                                      delaySMG(100);
+ 330   4                                      
+ 331   4                                      displaySMG(2,SMG_number[maxShidu/10]);
+ 332   4                                      delaySMG(100);
+ 333   4                                      displaySMG(3,SMG_number[maxShidu%10]);
+ 334   4                                      delaySMG(100);
+ 335   4                                      
+ 336   4                                      displaySMG(4,SMG_number[16]);
+ 337   4                                      delaySMG(100);
+ 338   4                                      
+ 339   4                                      displaySMG(5,SMG_number[aveShidu/100]);
+ 340   4                                      delaySMG(100);
+ 341   4                                      displaySMG(6,SMG_Dotnumber[(aveShidu%100)/10]);
+ 342   4                                      delaySMG(100);
+ 343   4                                      displaySMG(7,SMG_number[aveShidu%10]);
+ 344   4                                      delaySMG(100);
+ 345   4                                      offSMG();
+ 346   4                              }
+ 347   3                              else if(huixian==3)//回显模式3，时间
+ 348   3                              {
+ 349   4                              
+ 350   4                                      displaySMG(0,SMG_number[15]);//F
+ 351   4                                      delaySMG(100);
+ 352   4                                      
+ 353   4                                      displaySMG(1,SMG_number[caiji/10]);
+ 354   4                                      delaySMG(100);
+ 355   4                                      displaySMG(2,SMG_number[caiji%10]);
+ 356   4                                      delaySMG(100);
+ 357   4              
+ 358   4                                      displaySMG(3,SMG_number[hour/16]);
+ 359   4                                      delaySMG(100);
+ 360   4                                      displaySMG(4,SMG_number[hour%16]);
+ 361   4                                      delaySMG(100);
+ 362   4                              
+ 363   4                                      displaySMG(5,SMG_number[16]);
+ 364   4                                      delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 7   
+
+ 365   4                              
+ 366   4                                      displaySMG(6,SMG_number[minute/16]);
+ 367   4                                      delaySMG(100);
+ 368   4                                      displaySMG(7,SMG_number[minute%16]);
+ 369   4                                      delaySMG(100);
+ 370   4                                      offSMG();
+ 371   4                              }
+ 372   3                      }
+ 373   2                      else if(SMG_mode==3)
+ 374   2                      {
+ 375   3                              displaySMG(0,0x8c);//P
+ 376   3                              delaySMG(100);
+ 377   3                              
+ 378   3                              displaySMG(6,SMG_number[giveTemp/10]);
+ 379   3                              delaySMG(100);
+ 380   3                              displaySMG(7,SMG_number[giveTemp%10]);
+ 381   3                              delaySMG(100);
+ 382   3                              offSMG();
+ 383   3                      }
+ 384   2      
+ 385   2                              
+ 386   2              }
+ 387   1      }
+ 388          void scanKey()
+ 389          {
+ 390   1              R1=0;
+ 391   1              R2=1;
+ 392   1              C1=C2=1;
+ 393   1              if((R1==0)&&(C1==0))//S4
+ 394   1              {
+ 395   2                      delaySMG(200);
+ 396   2                      if(C1==0)
+ 397   2                      {
+ 398   3                              if(SMG_mode==3)
+ 399   3                              {
+ 400   4                                      SMG_mode=1;
+ 401   4                                      huixian=1;
+ 402   4                              }
+ 403   3                              else
+ 404   3                              {
+ 405   4                                      SMG_mode++;
+ 406   4                              }
+ 407   3      
+ 408   3                      }
+ 409   2                      while(C1==0)
+ 410   2                      {
+ 411   3                              showSMG();
+ 412   3                              showLED();
+ 413   3                      }
+ 414   2              }
+ 415   1              else if((R1==0)&&(C2==0))//S8
+ 416   1              {
+ 417   2                      delaySMG(200);
+ 418   2                      if(C2==0)
+ 419   2                      {
+ 420   3                              if(SMG_mode==3)
+ 421   3                              {
+ 422   4                                      if(giveTemp==99)
+ 423   4                                      {
+ 424   5                                              giveTemp=0;
+ 425   5                                      }
+ 426   4                                      else
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 8   
+
+ 427   4                                      {
+ 428   5                                              giveTemp++;
+ 429   5                                      }
+ 430   4                              }
+ 431   3                      }
+ 432   2                      while(C2==0)
+ 433   2                      {
+ 434   3                              showSMG();
+ 435   3                              showLED();
+ 436   3                      }
+ 437   2              }
+ 438   1              
+ 439   1              R2=0;
+ 440   1              R1=1;
+ 441   1              C1=C2=1;
+ 442   1              if((R2==0)&&(C1==0))//S5
+ 443   1              {
+ 444   2                      delaySMG(200);
+ 445   2                      if(C1==0)
+ 446   2                      {
+ 447   3                              if(SMG_mode==2)
+ 448   3                              {
+ 449   4                                      if(huixian==3)
+ 450   4                                      {
+ 451   5                                              huixian=1;
+ 452   5                                      }
+ 453   4                                      else
+ 454   4                                      {
+ 455   5                                              huixian++;
+ 456   5                                      }
+ 457   4                              }
+ 458   3                      }
+ 459   2                      while(C1==0)
+ 460   2                      {
+ 461   3                              showSMG();
+ 462   3                              showLED();
+ 463   3                      }
+ 464   2              }
+ 465   1              else if((R2==0)&&(C2==0))//S9
+ 466   1              {
+ 467   2                      delaySMG(100);
+ 468   2                      if(C2==0)
+ 469   2                      {
+ 470   3                              if(SMG_mode==3)
+ 471   3                              {
+ 472   4                                      if(giveTemp==0)
+ 473   4                                      {
+ 474   5                                              giveTemp=99;
+ 475   5                                      }
+ 476   4                                      else
+ 477   4                                      {
+ 478   5                                              giveTemp--;
+ 479   5                                      }
+ 480   4                              }
+ 481   3                              if((SMG_mode==2)&&(huixian==3))
+ 482   3                              {
+ 483   4                                      S9_t=1;
+ 484   4                              
+ 485   4                              }
+ 486   3                      }
+ 487   2                      while(C2==0)
+ 488   2                      {
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 9   
+
+ 489   3                              showSMG();
+ 490   3                              showLED();
+ 491   3                      }
+ 492   2                      S9_t=0;
+ 493   2              }
+ 494   1      }
+ 495          void showLED()
+ 496          {
+ 497   1              if((SMG_mode==1)&&(v1_change==0))
+ 498   1              {
+ 499   2                      SelectHC(4);
+ 500   2                      L1=0;
+ 501   2              }
+ 502   1              else if((SMG_mode==2)&&(v1_change==0))
+ 503   1              {
+ 504   2                      SelectHC(4);
+ 505   2                      L2=0;
+ 506   2              }
+ 507   1              if(v1_change==1)
+ 508   1              {
+ 509   2                      SelectHC(4);
+ 510   2                      L3=0;
+ 511   2              }
+ 512   1              if(caiji!=0)
+ 513   1              {
+ 514   2                      if((temp_arr[caiji-1]>giveTemp)&&(L4_key==1))
+ 515   2                      {
+ 516   3                              SelectHC(4);
+ 517   3                              L4=0;
+ 518   3                      }
+ 519   2                      else
+ 520   2                      {
+ 521   3                              SelectHC(4);
+ 522   3                              L4=1;
+ 523   3                      }
+ 524   2                      if(shidu_arr[caiji-1]==0)
+ 525   2                      {
+ 526   3                              SelectHC(4);
+ 527   3                              L5=0;
+ 528   3                      }
+ 529   2                      
+ 530   2              }
+ 531   1              if(caiji>=2)
+ 532   1              {
+ 533   2                      if((temp_arr[caiji-1]>temp_arr[caiji-2])&&(shidu_arr[caiji-1]>shidu_arr[caiji-2]))
+ 534   2                      {
+ 535   3                              SelectHC(4);
+ 536   3                              L6=0;
+ 537   3                      }
+ 538   2              }
+ 539   1              delaySMG(100);
+ 540   1              SelectHC(4);
+ 541   1              P0=0xff;
+ 542   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1750    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     88    ----
+C51 COMPILER V9.56.0.0   MAIN                                                              04/11/2024 20:15:25 PAGE 10  
+
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

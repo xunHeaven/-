@@ -1,0 +1,385 @@
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE LIGNTINGCTRL
+OBJECT MODULE PLACED IN .\Objects\ligntingCtrl.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE ligntingCtrl.C OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\
+                    -Listings\ligntingCtrl.lst) OBJECT(.\Objects\ligntingCtrl.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include "iic.h"
+   3          #include <intrins.h>
+   4          
+   5          //矩阵键盘行列定义
+   6          sbit R1=P3^3;
+   7          sbit R2=P3^2;
+   8          sbit C1=P3^5;
+   9          sbit C2=P3^4;
+  10          
+  11          unsigned char smg_state=0;//数码管界面显示模式，0时为数据界面，1时为参数界面，2时为计数界面
+  12          unsigned char Vin3_pre;//滑动变阻器上一次的分压值
+  13          unsigned int Vin3;//滑动变阻器当前的分压值
+  14          unsigned int Vp=0;//电压参数
+  15          unsigned int move_count=0;//计数值
+  16          unsigned char Vin3_Vp_state=0;//Vin3和Vp的大小状态
+  17          
+  18          unsigned char L1_enable=0;//L1使能
+  19          unsigned char L3_enable=0;//L3使能
+  20          //定义动态显示中单个数码管点亮时长
+  21          #define TSMG 500
+  22          //数码管段码表
+  23          unsigned char code SMG_NoDot[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,
+  24               0x80,0x90,0x88,0x83,0xc6,0xc0,0x86,0x8e,
+  25                  0xbf,0x7f};//包含0-f和-.
+  26          unsigned char code SMG_Dot[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10};//包含0.到9.
+  27          //
+  28          
+  29          void selectHC573(unsigned char channel)
+  30          {
+  31   1              switch(channel)
+  32   1              {
+  33   2                      case 4:
+  34   2                              P2=(P2&&0x1f)|0x80;
+  35   2                              break;
+  36   2                      case 5:
+  37   2                              P2=(P2&&0x1f)|0xa0;
+  38   2                              break;
+  39   2                      case 6:
+  40   2                              P2=(P2&&0x1f)|0xc0;
+  41   2                              break;
+  42   2                      case 7:
+  43   2                              P2=(P2&&0x1f)|0xe0;
+  44   2                              break;
+  45   2              }
+  46   1      }
+  47          void sysInit()//单片机初始化
+  48          {
+  49   1              selectHC573(5);
+  50   1              P0=P0&0xaf;//关掉继电器和蜂鸣器
+  51   1              
+  52   1              selectHC573(4);
+  53   1              P0=0xff;//关掉LED灯
+  54   1              
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 2   
+
+  55   1      }
+  56          //数码管专用延时函数
+  57          void delaySMG(unsigned int t)
+  58          {
+  59   1              while(t--);
+  60   1      }
+  61          void display_SMG(unsigned char pos,unsigned char value)//数码管位选和显示值
+  62          {
+  63   1              selectHC573(7);
+  64   1              P0=0xff;//消影
+  65   1              
+  66   1              selectHC573(6);
+  67   1              P0=(0x01<<pos);//数码管位选
+  68   1              
+  69   1              selectHC573(7);
+  70   1              P0=value;//数码管显示的内容
+  71   1      }
+  72          void ctrl_SMG()//数码管位选和显示值
+  73          {
+  74   1              selectHC573(7);
+  75   1              P0=0xff;//消影
+  76   1              
+  77   1              selectHC573(6);
+  78   1              P0=0xff;//数码管位选
+  79   1              
+  80   1              selectHC573(7);
+  81   1              P0=0xff;//数码管显示的内容
+  82   1      }
+  83          void SMG_show(unsigned char mode)
+  84          {
+  85   1              switch(mode)
+  86   1              {
+  87   2                      case 0:
+  88   2                              display_SMG(0,0xc1);//0位数码管显示U
+  89   2                              delaySMG(100);
+  90   2                              display_SMG(5,SMG_Dot[Vin3/100]);
+  91   2                              delaySMG(100);
+  92   2                              display_SMG(6,SMG_NoDot[(Vin3%100)/10]);
+  93   2                              delaySMG(100);
+  94   2                              display_SMG(7,SMG_NoDot[Vin3%10]);
+  95   2                              delaySMG(100);
+  96   2                              ctrl_SMG();
+  97   2                              delaySMG(100);
+  98   2                              break;
+  99   2                      case 1:
+ 100   2                              display_SMG(0,0x8c);//0位数码管显示P
+ 101   2                              delaySMG(100);
+ 102   2                              display_SMG(5,SMG_Dot[Vp/100]);
+ 103   2                              delaySMG(100);
+ 104   2                              display_SMG(6,SMG_NoDot[(Vp%100)/10]);
+ 105   2                              delaySMG(100);
+ 106   2                              display_SMG(7,SMG_NoDot[Vp%10]);
+ 107   2                              delaySMG(100);
+ 108   2                              ctrl_SMG();
+ 109   2                              delaySMG(100);
+ 110   2                              break;
+ 111   2                      case 2:
+ 112   2                              display_SMG(0,0xc8);//0位数码管显示n
+ 113   2                              delaySMG(100);
+ 114   2                              display_SMG(6,SMG_NoDot[move_count/10]);
+ 115   2                              delaySMG(100);
+ 116   2                              display_SMG(7,SMG_NoDot[move_count%10]);
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 3   
+
+ 117   2                              delaySMG(100);
+ 118   2                              ctrl_SMG();
+ 119   2                              delaySMG(100);
+ 120   2                              break;
+ 121   2              }
+ 122   1      }
+ 123          
+ 124          void keyCtrl()
+ 125          {
+ 126   1              R1=0;
+ 127   1              R2=1;
+ 128   1              C1=C2=1;
+ 129   1              if(C1==0)//S12
+ 130   1              {
+ 131   2                      delaySMG(200);
+ 132   2                      if(C1==0)
+ 133   2                      {
+ 134   3                              L3_enable=0;
+ 135   3                              if(smg_state==2)
+ 136   3                              {
+ 137   4                                      smg_state=0;
+ 138   4                              }
+ 139   3                              else if(smg_state==1)
+ 140   3                              {
+ 141   4                                      smg_state++;
+ 142   4                                      AT24_Write(0x00,Vp/10);//退出参数界面时将Vp*10，写入EEPROM的第0号单元；
+ 143   4                              }
+ 144   3                              else
+ 145   3                              {
+ 146   4                                      smg_state++;
+ 147   4                              }
+ 148   3                      }
+ 149   2                      while(C1==0)
+ 150   2                      {
+ 151   3                              SMG_show(smg_state);
+ 152   3                      }
+ 153   2              }
+ 154   1              else if(C2==0)//S16
+ 155   1              {
+ 156   2                      delaySMG(200);
+ 157   2                      if(C2==0)
+ 158   2                      {
+ 159   3                              if(smg_state==1)//要在参数界面才生效
+ 160   3                              {
+ 161   4                                      if(Vp==500)
+ 162   4                                      {
+ 163   5                                              Vp=0;
+ 164   5                                      }
+ 165   4                                      else
+ 166   4                                      {
+ 167   5                                              Vp=Vp+50;
+ 168   5                                      }
+ 169   4                              }
+ 170   3                              else
+ 171   3                              {
+ 172   4                                      L3_enable++;
+ 173   4                              }
+ 174   3                      }
+ 175   2                      while(C2==0)
+ 176   2                      {
+ 177   3                              SMG_show(smg_state);
+ 178   3                      }
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 4   
+
+ 179   2                      
+ 180   2              }
+ 181   1              
+ 182   1              R1=1;
+ 183   1              R2=0;
+ 184   1              C1=C2=1;
+ 185   1              if(C1==0)//S13
+ 186   1              {
+ 187   2                      delaySMG(200);
+ 188   2                      if(C1==0)
+ 189   2                      {
+ 190   3                              if(smg_state==2)//要在计数界面才生效
+ 191   3                              {
+ 192   4                                      move_count=0;
+ 193   4                              }
+ 194   3                              else
+ 195   3                              {
+ 196   4                                      L3_enable++;
+ 197   4                              }
+ 198   3                      }
+ 199   2                      while(C1==0)
+ 200   2                      {
+ 201   3                              SMG_show(smg_state);
+ 202   3                      }
+ 203   2              }
+ 204   1              else if(C2==0)//S17
+ 205   1              {
+ 206   2                      delaySMG(200);
+ 207   2                      if(C2==0)
+ 208   2                      {
+ 209   3                              if(smg_state==1)//要在参数界面才生效
+ 210   3                              {
+ 211   4                                      if(Vp==0)
+ 212   4                                      {
+ 213   5                                              Vp=500;
+ 214   5                                      }
+ 215   4                                      else
+ 216   4                                      {
+ 217   5                                              Vp=Vp-50;
+ 218   5                                      }
+ 219   4                              }
+ 220   3                              else
+ 221   3                              {
+ 222   4                                      L3_enable++;
+ 223   4                              }
+ 224   3                      }
+ 225   2                      while(C2==0)
+ 226   2                      {
+ 227   3                              SMG_show(smg_state);
+ 228   3                      }
+ 229   2              }
+ 230   1              
+ 231   1      }
+ 232          
+ 233          void InitTimer0()
+ 234          {
+ 235   1              TMOD = 0x01;                    //设置定时器为模式0
+ 236   1          TL0 = (65535-50000)%256;                     //初始化计时值
+ 237   1          TH0 = (65535-50000)/256;
+ 238   1          TR0 = 1;                        //定时器0开始计时
+ 239   1          ET0 = 1;                        //使能定时器0中断
+ 240   1          EA = 1;
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 5   
+
+ 241   1      }
+ 242          
+ 243          
+ 244          unsigned int t_Led1=0;//对Led灯的L1进行使能
+ 245          unsigned char Led1=0;
+ 246          void SeviceTimer0() interrupt 1
+ 247          {
+ 248   1              TL0 = (65535-50000)%256;                     //初始化计时值
+ 249   1          TH0 = (65535-50000)/256;
+ 250   1              if(L1_enable==1)
+ 251   1              {
+ 252   2                      t_Led1++;
+ 253   2                      if(t_Led1>=100)//Vin3<Vp,大于5秒L1点亮
+ 254   2                      {
+ 255   3                              Led1=1;
+ 256   3                      }
+ 257   2              }
+ 258   1              else
+ 259   1              {
+ 260   2                      Led1=0;
+ 261   2                      t_Led1=0;
+ 262   2              }
+ 263   1              
+ 264   1              
+ 265   1              
+ 266   1      }
+ 267          
+ 268          void Delay50ms()                //@12.000MHz
+ 269          {
+ 270   1              unsigned char i, j, k;
+ 271   1      
+ 272   1              _nop_();
+ 273   1              _nop_();
+ 274   1              i = 3;
+ 275   1              j = 72;
+ 276   1              k = 161;
+ 277   1              do
+ 278   1              {
+ 279   2                      do
+ 280   2                      {
+ 281   3                              while (--k);
+ 282   3                      } while (--j);
+ 283   2              } while (--i);
+ 284   1      }
+ 285          
+ 286          
+ 287          void main()
+ 288          {
+ 289   1              sysInit();
+ 290   1              //AT24_Write(0x00,0);
+ 291   1              //delaySMG(500);
+ 292   1              //Vp=(AT24_Read(0x00))*10;//读取Vp的值
+ 293   1              InitTimer0();
+ 294   1              
+ 295   1              while(1)
+ 296   1              {
+ 297   2                      Vin3_pre=PCF_Read(0x03);
+ 298   2                      Vin3=(unsigned int)(Vin3_pre*100/255)*5;//从PCF读取Vin3的值，直接读取的值为0-255，要转化成0-5，通过扩大1
+             -00倍保留三位有效数字
+ 299   2                      
+ 300   2                      if(Vin3>Vp) {Vin3_Vp_state=1;}//做标记
+ 301   2                      if((Vin3_Vp_state==1)&&(Vin3<=Vp)) 
+C51 COMPILER V9.56.0.0   LIGNTINGCTRL                                                      03/27/2024 20:35:15 PAGE 6   
+
+ 302   2                      {
+ 303   3                              move_count++;
+ 304   3                              Vin3_Vp_state=0;
+ 305   3                      }//满足条件，计数值+1
+ 306   2                      SMG_show(smg_state);
+ 307   2                      keyCtrl();
+ 308   2                      
+ 309   2                      if(Vin3<Vp) L1_enable=1;//如果Vin3<Vp，开始计时，五秒后点亮L1
+ 310   2                      else
+ 311   2                      {
+ 312   3                              L1_enable=0;
+ 313   3                      }
+ 314   2                      if(Led1==1)
+ 315   2                      {
+ 316   3                              selectHC573(4);
+ 317   3                              P0=P0&0xfe;
+ 318   3                      }
+ 319   2                      else
+ 320   2                      {
+ 321   3                              selectHC573(4);
+ 322   3                              P0=P0|0x01;
+ 323   3                      }
+ 324   2      
+ 325   2                      if(move_count%2!=0)//如果计数为奇数则L2点亮
+ 326   2                      {
+ 327   3                              selectHC573(4);
+ 328   3                              P0=P0&0xfd;
+ 329   3                      }
+ 330   2                      else
+ 331   2                      {
+ 332   3                              selectHC573(4);
+ 333   3                              P0=P0|0x02;
+ 334   3                      }
+ 335   2                      
+ 336   2                      if(L3_enable>=3)
+ 337   2                      {
+ 338   3                              selectHC573(4);
+ 339   3                              P0=P0&0xfb;
+ 340   3                      }
+ 341   2                      else
+ 342   2                      {
+ 343   3                              selectHC573(4);
+ 344   3                              P0=P0|0x04;
+ 345   3                      }
+ 346   2                      
+ 347   2                      
+ 348   2                      
+ 349   2              }
+ 350   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    864    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     14    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

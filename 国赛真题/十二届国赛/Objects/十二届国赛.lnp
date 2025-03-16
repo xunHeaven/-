@@ -1,0 +1,6 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\iic.obj",
+".\Objects\ds1302.obj" 
+TO ".\Objects\十二届国赛" 
+PRINT(".\Listings\十二届国赛.m51") RAMSIZE(256) 

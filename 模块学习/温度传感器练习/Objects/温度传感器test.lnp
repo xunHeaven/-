@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\DS18B20Test1.obj",
+".\Objects\onewire.obj" 
+TO ".\Objects\温度传感器test" 
+PRINT(".\Listings\温度传感器test.m51") RAMSIZE(256) 

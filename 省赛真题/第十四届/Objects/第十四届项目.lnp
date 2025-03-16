@@ -1,0 +1,7 @@
+".\Objects\STARTUP.obj",
+".\Objects\ds1302.obj",
+".\Objects\iic.obj",
+".\Objects\main.obj",
+".\Objects\onewire.obj" 
+TO ".\Objects\第十四届项目" 
+PRINT(".\Listings\第十四届项目.m51") RAMSIZE(256) 

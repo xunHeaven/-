@@ -1,0 +1,186 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/12/2024 20:44:27 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_c51v956\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings
+                    -\main.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC15F2K60S2.H>
+   2          #include <ds1302.h>
+   3          #include <iic.h>
+   4          #include <onewire.h>
+   5          #include <intrins.h>
+   6          
+   7          sbit R1=P3^0;
+   8          sbit C2=P4^2;
+   9          unsigned char code SMG_number[]=
+  10                  {0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0x88,0x80,0xc6,
+  11                  0xc0,0x86,0x8e,0xbf,0x7f};//数码管段码，0-f和-.
+  12          unsigned char code SMG_Dotnumber[]={0x40,0x79,0x24,0x30,0x19,0x12,0x02,0x78,0x00,0x10}; 
+  13          unsigned char SMG_mode=1;
+  14          unsigned int temp=0;
+  15          unsigned char v=0;
+  16          
+  17          
+  18          void SelectHC(unsigned char channel);
+  19          void Initsys();
+  20          void displaySMG(unsigned char pos,unsigned char value);
+  21          void showSMG();
+  22          void offSMG();
+  23          void scanKey();
+  24          void delaySMG(unsigned int t);
+  25          void main()
+  26          {
+  27   1              Initsys();
+  28   1              temp=read_temp();
+  29   1              write_date();
+  30   1              while(1)
+  31   1              {
+  32   2                      v=read_PCF(0X03);
+  33   2                      temp=read_temp();
+  34   2                      read_date();
+  35   2                      scanKey();
+  36   2                      showSMG();
+  37   2                      
+  38   2              }
+  39   1      }
+  40          void SelectHC(unsigned char channel)
+  41          {
+  42   1              switch(channel)
+  43   1              {
+  44   2                      case 4:
+  45   2                              P2=(P2&0x1f)|0x80;
+  46   2                              break;
+  47   2                      case 5:
+  48   2                              P2=(P2&0x1f)|0xa0;
+  49   2                              break;
+  50   2                      case 6:
+  51   2                              P2=(P2&0x1f)|0xc0;
+  52   2                              break;
+  53   2                      case 7:
+  54   2                              P2=(P2&0x1f)|0xe0;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/12/2024 20:44:27 PAGE 2   
+
+  55   2                              break;
+  56   2              }
+  57   1      }
+  58          void Initsys()
+  59          {
+  60   1              SelectHC(5);
+  61   1              P0=P0&0xaf;
+  62   1              SelectHC(4);
+  63   1              P0=0xff;
+  64   1      }
+  65          void displaySMG(unsigned char pos,unsigned char value)
+  66          {
+  67   1              SelectHC(6);
+  68   1              P0=0x01<<pos;
+  69   1              SelectHC(7);
+  70   1              P0=value;
+  71   1      }
+  72          void offSMG()
+  73          {
+  74   1              SelectHC(6);
+  75   1              P0=0x00;
+  76   1              SelectHC(7);
+  77   1              P0=0xff;
+  78   1      }
+  79          void delaySMG(unsigned int t)
+  80          {
+  81   1              while(t--);
+  82   1      }
+  83          void showSMG()
+  84          {
+  85   1              if(SMG_mode==1)//时间
+  86   1              {
+  87   2                      displaySMG(0,SMG_number[Timer[2]/16]);
+  88   2                      delaySMG(100);
+  89   2                      displaySMG(1,SMG_number[Timer[2]%16]);
+  90   2                      delaySMG(100);
+  91   2                      
+  92   2                      displaySMG(2,SMG_number[16]);
+  93   2                      delaySMG(100);
+  94   2                      
+  95   2                      displaySMG(3,SMG_number[Timer[1]/16]);
+  96   2                      delaySMG(100);
+  97   2                      displaySMG(4,SMG_number[Timer[1]%16]);
+  98   2                      delaySMG(100);
+  99   2                      
+ 100   2                      displaySMG(5,SMG_number[16]);
+ 101   2                      delaySMG(100);
+ 102   2                      
+ 103   2                      displaySMG(6,SMG_number[Timer[0]/16]);
+ 104   2                      delaySMG(100);
+ 105   2                      displaySMG(7,SMG_number[Timer[0]%16]);
+ 106   2                      delaySMG(100);
+ 107   2                      offSMG();
+ 108   2              }
+ 109   1              else if(SMG_mode==2)//温度
+ 110   1              {
+ 111   2                      displaySMG(0,SMG_number[12]);
+ 112   2                      delaySMG(100);
+ 113   2                      displaySMG(5,SMG_number[temp/100]);
+ 114   2                      delaySMG(100);
+ 115   2                      displaySMG(6,SMG_number[(temp%100)/10]);
+ 116   2                      delaySMG(100);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/12/2024 20:44:27 PAGE 3   
+
+ 117   2                      displaySMG(7,SMG_number[temp%10]);
+ 118   2                      delaySMG(100);
+ 119   2                      offSMG();
+ 120   2              }
+ 121   1              else if(SMG_mode==3)
+ 122   1              {
+ 123   2                      displaySMG(0,SMG_number[14]);
+ 124   2                      delaySMG(100);
+ 125   2                      displaySMG(5,SMG_number[v/100]);
+ 126   2                      delaySMG(100);
+ 127   2                      displaySMG(6,SMG_number[(v%100)/10]);
+ 128   2                      delaySMG(100);
+ 129   2                      displaySMG(7,SMG_number[v%10]);
+ 130   2                      delaySMG(100);
+ 131   2                      offSMG();
+ 132   2              }
+ 133   1      }
+ 134          
+ 135          void scanKey()
+ 136          {
+ 137   1              R1=0;
+ 138   1              C2=1;
+ 139   1              if(C2==0)
+ 140   1              {
+ 141   2                      delaySMG(100);
+ 142   2                      if(C2==0)
+ 143   2                      {
+ 144   3                              if(SMG_mode==3)
+ 145   3                              {
+ 146   4                                      SMG_mode=1;
+ 147   4                              }
+ 148   3                              else
+ 149   3                              {
+ 150   4                                      SMG_mode++;
+ 151   4                              }
+ 152   3                      }
+ 153   2              }
+ 154   1              while(C2==0)
+ 155   1              {
+ 156   2                      showSMG();      
+ 157   2              }
+ 158   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    478    ----
+   CONSTANT SIZE    =     28    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      4    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

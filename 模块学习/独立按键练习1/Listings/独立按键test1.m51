@@ -1,0 +1,216 @@
+BL51 BANKED LINKER/LOCATER V6.22                                                        03/11/2024  22:33:10  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V6.22, INVOKED BY:
+C:\KEIL_C51V956\C51\BIN\BL51.EXE .\Objects\STARTUP.obj, .\Objects\test1.obj TO .\Objects\独立按键test1 PRINT (.\Listings
+>> \独立按键test1.m51) RAMSIZE (256)
+
+
+MEMORY MODEL: SMALL
+
+
+INPUT MODULES INCLUDED:
+  .\Objects\STARTUP.obj (?C_STARTUP)
+  .\Objects\test1.obj (TEST1)
+
+
+LINK MAP OF MODULE:  .\Objects\独立按键test1 (?C_STARTUP)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            IDATA   0008H     0001H     UNIT         ?STACK
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0003H     ABSOLUTE     
+            CODE    0003H     0041H     UNIT         ?PR?SCANKEYS_ALONE?TEST1
+            CODE    0044H     000FH     UNIT         ?PR?_HC138_CTRL?TEST1
+            CODE    0053H     000FH     UNIT         ?PR?_DELAY?TEST1
+            CODE    0062H     000CH     UNIT         ?C_C51STARTUP
+            CODE    006EH     000CH     UNIT         ?PR?MAIN?TEST1
+
+
+
+OVERLAY MAP OF MODULE:   .\Objects\独立按键test1 (?C_STARTUP)
+
+
+SEGMENT
+  +--> CALLED SEGMENT
+---------------------
+?C_C51STARTUP
+  +--> ?PR?MAIN?TEST1
+
+?PR?MAIN?TEST1
+  +--> ?PR?_HC138_CTRL?TEST1
+  +--> ?PR?SCANKEYS_ALONE?TEST1
+
+?PR?SCANKEYS_ALONE?TEST1
+  +--> ?PR?_DELAY?TEST1
+
+
+
+SYMBOL TABLE OF MODULE:  .\Objects\独立按键test1 (?C_STARTUP)
+
+  VALUE           TYPE          NAME
+  ----------------------------------
+
+  -------         MODULE        ?C_STARTUP
+  C:0062H         SEGMENT       ?C_C51STARTUP
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/11/2024  22:33:10  PAGE 2
+
+
+  I:0008H         SEGMENT       ?STACK
+  C:0000H         PUBLIC        ?C_STARTUP
+  D:00E0H         SYMBOL        ACC
+  D:00F0H         SYMBOL        B
+  D:0083H         SYMBOL        DPH
+  D:0082H         SYMBOL        DPL
+  N:0000H         SYMBOL        IBPSTACK
+  N:0100H         SYMBOL        IBPSTACKTOP
+  N:0080H         SYMBOL        IDATALEN
+  C:0065H         SYMBOL        IDATALOOP
+  N:0000H         SYMBOL        PBPSTACK
+  N:0100H         SYMBOL        PBPSTACKTOP
+  N:0000H         SYMBOL        PDATALEN
+  N:0000H         SYMBOL        PDATASTART
+  N:0000H         SYMBOL        PPAGE
+  N:0000H         SYMBOL        PPAGEENABLE
+  D:00A0H         SYMBOL        PPAGE_SFR
+  D:0081H         SYMBOL        SP
+  C:0062H         SYMBOL        STARTUP1
+  N:0000H         SYMBOL        XBPSTACK
+  N:0000H         SYMBOL        XBPSTACKTOP
+  N:0000H         SYMBOL        XDATALEN
+  N:0000H         SYMBOL        XDATASTART
+  C:0000H         LINE#         126
+  C:0062H         LINE#         133
+  C:0064H         LINE#         134
+  C:0065H         LINE#         135
+  C:0066H         LINE#         136
+  C:0068H         LINE#         185
+  C:006BH         LINE#         196
+  -------         ENDMOD        ?C_STARTUP
+
+  -------         MODULE        TEST1
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  B:0080H.2       PUBLIC        L3
+  B:0080H.3       PUBLIC        L4
+  D:0080H         PUBLIC        P0
+  D:0090H         PUBLIC        P1
+  D:00A0H         PUBLIC        P2
+  D:00B0H         PUBLIC        P3
+  D:00C0H         PUBLIC        P4
+  D:00C8H         PUBLIC        P5
+  D:00E8H         PUBLIC        P6
+  B:00B0H.3       PUBLIC        S4
+  D:00F8H         PUBLIC        P7
+  B:00B0H.2       PUBLIC        S5
+  B:00B0H.1       PUBLIC        S6
+  B:00B0H.0       PUBLIC        S7
+  D:00A8H         PUBLIC        IE
+  C:0057H         PUBLIC        _delay
+  C:0003H         PUBLIC        ScanKeys_alone
+  D:00B8H         PUBLIC        IP
+  D:00D8H         PUBLIC        CCON
+  C:006EH         PUBLIC        main
+  D:0098H         PUBLIC        SCON
+  D:0088H         PUBLIC        TCON
+  C:0044H         PUBLIC        _HC138_ctrl
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/11/2024  22:33:10  PAGE 3
+
+
+  B:00A0H.5       PUBLIC        HC138_A
+  B:00A0H.6       PUBLIC        HC138_B
+  B:00A0H.7       PUBLIC        HC138_C
+  D:00D0H         PUBLIC        PSW
+  B:0080H.0       PUBLIC        L1
+  B:0080H.1       PUBLIC        L2
+  -------         PROC          _HC138_CTRL
+  D:0006H         SYMBOL        hc
+  C:0044H         LINE#         23
+  C:0044H         LINE#         24
+  C:0044H         LINE#         25
+  C:004CH         LINE#         26
+  C:004CH         LINE#         27
+  C:004CH         LINE#         28
+  C:004EH         LINE#         29
+  C:0050H         LINE#         30
+  C:0052H         LINE#         31
+  C:0052H         LINE#         32
+  C:0052H         LINE#         33
+  -------         ENDPROC       _HC138_CTRL
+  C:0053H         SYMBOL        L?0029
+  -------         PROC          L?0028
+  -------         ENDPROC       L?0028
+  C:0053H         SYMBOL        L?0029
+  -------         PROC          _DELAY
+  D:0006H         SYMBOL        t
+  C:0057H         LINE#         34
+  C:0057H         LINE#         35
+  C:0057H         LINE#         36
+  C:0061H         LINE#         37
+  -------         ENDPROC       _DELAY
+  -------         PROC          SCANKEYS_ALONE
+  C:0003H         LINE#         38
+  C:0003H         LINE#         39
+  C:0003H         LINE#         40
+  C:0006H         LINE#         41
+  C:0006H         LINE#         42
+  C:0009H         LINE#         43
+  C:000CH         LINE#         44
+  C:000CH         LINE#         45
+  C:000EH         LINE#         46
+  C:0011H         LINE#         47
+  C:0013H         LINE#         48
+  C:0013H         LINE#         49
+  C:0013H         LINE#         50
+  C:0016H         LINE#         51
+  C:0016H         LINE#         52
+  C:0019H         LINE#         53
+  C:001CH         LINE#         54
+  C:001CH         LINE#         55
+  C:001EH         LINE#         56
+  C:0021H         LINE#         57
+  C:0023H         LINE#         58
+  C:0023H         LINE#         59
+  C:0023H         LINE#         60
+  C:0026H         LINE#         61
+  C:0026H         LINE#         62
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/11/2024  22:33:10  PAGE 4
+
+
+  C:0029H         LINE#         63
+  C:002CH         LINE#         64
+  C:002CH         LINE#         65
+  C:002EH         LINE#         66
+  C:0031H         LINE#         67
+  C:0033H         LINE#         68
+  C:0033H         LINE#         69
+  C:0033H         LINE#         70
+  C:0036H         LINE#         71
+  C:0036H         LINE#         72
+  C:0039H         LINE#         73
+  C:003CH         LINE#         74
+  C:003CH         LINE#         75
+  C:003EH         LINE#         76
+  C:0041H         LINE#         77
+  C:0043H         LINE#         78
+  C:0043H         LINE#         79
+  C:0043H         LINE#         80
+  -------         ENDPROC       SCANKEYS_ALONE
+  -------         PROC          MAIN
+  C:006EH         LINE#         81
+  C:006EH         LINE#         82
+  C:006EH         LINE#         83
+  C:0075H         LINE#         84
+  C:0075H         LINE#         85
+  C:0075H         LINE#         86
+  C:0078H         LINE#         87
+  -------         ENDPROC       MAIN
+  -------         ENDMOD        TEST1
+
+Program Size: data=9.0 xdata=0 code=122
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)

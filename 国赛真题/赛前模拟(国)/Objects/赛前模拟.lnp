@@ -1,0 +1,7 @@
+".\Objects\STARTUP.obj",
+".\Objects\ds1302.obj",
+".\Objects\iic.obj",
+".\Objects\main.obj",
+".\Objects\onewire.obj" 
+TO ".\Objects\赛前模拟" 
+PRINT(".\Listings\赛前模拟.m51") RAMSIZE(256) 
